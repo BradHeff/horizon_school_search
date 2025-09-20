@@ -57,10 +57,10 @@ const MainLayout: React.FC = () => {
             top: 90,
             left: 16,
             zIndex: 1300,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #115740 0%, #22a06b 100%)',
             color: 'white',
             '&:hover': {
-              background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+              background: 'linear-gradient(135deg, #0d4a37 0%, #1e8b5c 100%)',
               transform: 'scale(1.05)',
             },
             transition: 'all 0.3s ease',
@@ -84,7 +84,7 @@ const MainLayout: React.FC = () => {
           display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': {
             width: 300,
-            background: 'linear-gradient(180deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)',
+            background: 'linear-gradient(180deg, #115740 0%, #1a7a5a 50%, #22a06b 100%)',
             border: 'none',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
           },
@@ -113,7 +113,7 @@ const MainLayout: React.FC = () => {
             <Box
               sx={{
                 height: '100%',
-                background: 'linear-gradient(180deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%)',
+                background: 'linear-gradient(180deg, #115740 0%, #1a7a5a 50%, #22a06b 100%)',
                 borderRadius: 3,
                 boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                 overflow: 'hidden',

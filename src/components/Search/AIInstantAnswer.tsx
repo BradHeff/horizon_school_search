@@ -47,8 +47,8 @@ const AIInstantAnswerComponent: React.FC<AIInstantAnswerProps> = ({ answer, quer
         sx={{
           mb: 3,
           borderRadius: '16px',
-          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)',
-          border: '2px solid rgba(102, 126, 234, 0.2)',
+          background: 'linear-gradient(135deg, rgba(17, 87, 64, 0.05) 0%, rgba(34, 160, 107, 0.05) 100%)',
+          border: '2px solid rgba(17, 87, 64, 0.2)',
           position: 'relative',
           overflow: 'visible',
         }}
@@ -59,14 +59,14 @@ const AIInstantAnswerComponent: React.FC<AIInstantAnswerProps> = ({ answer, quer
             position: 'absolute',
             top: -12,
             left: 20,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #115740 0%, #22a06b 100%)',
             borderRadius: '20px',
             px: 2,
             py: 0.5,
             display: 'flex',
             alignItems: 'center',
             gap: 0.5,
-            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+            boxShadow: '0 4px 12px rgba(17, 87, 64, 0.3)',
           }}
         >
           <AIIcon sx={{ fontSize: 16, color: 'white' }} />
@@ -87,7 +87,7 @@ const AIInstantAnswerComponent: React.FC<AIInstantAnswerProps> = ({ answer, quer
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
             <Box
               sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'linear-gradient(135deg, #115740 0%, #22a06b 100%)',
                 borderRadius: '12px',
                 p: 1,
                 display: 'flex',
@@ -143,7 +143,7 @@ const AIInstantAnswerComponent: React.FC<AIInstantAnswerProps> = ({ answer, quer
               background: 'rgba(255, 255, 255, 0.7)',
               borderRadius: '12px',
               p: 2,
-              border: '1px solid rgba(102, 126, 234, 0.1)',
+              border: '1px solid rgba(17, 87, 64, 0.1)',
             }}
           >
             {answer.answer}
@@ -174,10 +174,10 @@ const AIInstantAnswerComponent: React.FC<AIInstantAnswerProps> = ({ answer, quer
                         icon={<OpenIcon sx={{ fontSize: 14 }} />}
                         onClick={() => window.open(source, '_blank')}
                         sx={{
-                          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                          color: 'primary.main',
+                          backgroundColor: 'rgba(17, 87, 64, 0.1)',
+                          color: '#EAAA00',
                           '&:hover': {
-                            backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                            backgroundColor: 'rgba(17, 87, 64, 0.2)',
                             cursor: 'pointer',
                           },
                           fontSize: '0.7rem',

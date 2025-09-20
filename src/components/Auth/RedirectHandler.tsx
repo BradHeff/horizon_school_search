@@ -57,7 +57,7 @@ const RedirectHandler: React.FC = () => {
         justifyContent: 'center',
         minHeight: '100vh',
         padding: 3,
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #115740 0%, #22a06b 100%)',
         color: 'white'
       }}
     >

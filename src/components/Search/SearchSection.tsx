@@ -34,9 +34,9 @@ import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import type { ChatMessage } from '../../services/aiSearchService';
 import { AISearchService } from '../../services/aiSearchService';
 import { WebSearchService } from '../../services/webSearchService';
-import { addToHistory, setError, setLoading, setQuery, setResults, setAIAnswer, setGeneratingAnswer } from '../../store/slices/searchSlice';
-import LoadingSkeleton from './LoadingSkeleton';
+import { addToHistory, setAIAnswer, setError, setGeneratingAnswer, setLoading, setQuery, setResults } from '../../store/slices/searchSlice';
 import AIInstantAnswerComponent from './AIInstantAnswer';
+import LoadingSkeleton from './LoadingSkeleton';
 
 const SearchSection: React.FC = () => {
   const { query, results, aiAnswer, isLoading, isGeneratingAnswer, error, searchHistory } = useAppSelector((state) => state.search);
@@ -246,7 +246,7 @@ const SearchSection: React.FC = () => {
         <Card
           elevation={0}
           sx={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #115740 0%, #115740 45%, #FFC72C 87.5%, #EAAA00 100%)',
             borderRadius: '20px',
             overflow: 'hidden',
             position: 'sticky', // Make search bar sticky at top
@@ -354,15 +354,15 @@ const SearchSection: React.FC = () => {
                       startAdornment: (
                         <InputAdornment position="start">
                           {user?.role === 'staff' && aiMode === 'chat' ? (
-                            <ChatIcon sx={{ color: '#667eea', fontSize: 24 }} />
+                            <ChatIcon sx={{ color: '#115740', fontSize: 24 }} />
                           ) : (
-                            <SearchIcon sx={{ color: '#667eea', fontSize: 24 }} />
+                            <SearchIcon sx={{ color: '#115740', fontSize: 24 }} />
                           )}
                         </InputAdornment>
                       ),
                       endAdornment: isLoading && (
                         <InputAdornment position="end">
-                          <CircularProgress size={24} sx={{ color: '#667eea' }} />
+                          <CircularProgress size={24} sx={{ color: '#115740' }} />
                         </InputAdornment>
                       ),
                     }}
@@ -592,7 +592,7 @@ const SearchSection: React.FC = () => {
                             minWidth: '56px',
                             '& .MuiSvgIcon-root': {
                               fontSize: '1.75rem',
-                              color: '#667eea',
+                              color: '#115740',
                             },
                           }}
                         >
@@ -617,7 +617,7 @@ const SearchSection: React.FC = () => {
                                 label={result.category}
                                 size="small"
                                 sx={{
-                                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                  background: 'linear-gradient(135deg, #115740 0%, #22a06b 100%)',
                                   color: 'white',
                                   fontWeight: 'bold',
                                   borderRadius: '8px',

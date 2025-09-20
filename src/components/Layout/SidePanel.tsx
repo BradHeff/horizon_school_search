@@ -94,7 +94,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
       case 'staff':
         return '#f59e0b';
       case 'student':
-        return '#3b82f6';
+        return '#115740';
       default:
         return '#6b7280';
     }
@@ -313,7 +313,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       {aiMode === 'search' ? (
-                        <SearchIcon sx={{ color: '#3b82f6', mr: 1, fontSize: '1.1rem' }} />
+                        <SearchIcon sx={{ color: '#115740', mr: 1, fontSize: '1.1rem' }} />
                       ) : (
                         <ChatIcon sx={{ color: '#10b981', mr: 1, fontSize: '1.1rem' }} />
                       )}
@@ -341,7 +341,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
                           opacity: 0.7,
                         },
                         '& .MuiSwitch-track': {
-                          backgroundColor: '#3b82f6',
+                          backgroundColor: '#115740',
                           opacity: 0.7,
                         },
                       }}

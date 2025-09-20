@@ -29,14 +29,14 @@ const LoadingSkeleton: React.FC<LoadingSkeletonProps> = ({
               mb: 1.5,
               textAlign: 'center',
               background: isTyping
-                ? 'rgba(100, 116, 139, 0.1)'
-                : 'rgba(102, 126, 234, 0.1)',
+                ? 'rgba(17, 87, 64, 0.1)'
+                : 'rgba(17, 87, 64, 0.1)',
               borderRadius: '8px',
               p: 1,
               border: isTyping
-                ? '1px solid rgba(100, 116, 139, 0.2)'
-                : '1px solid rgba(102, 126, 234, 0.2)',
-              color: isTyping ? 'text.secondary' : 'primary.main'
+                ? '1px solid rgba(17, 87, 64, 0.2)'
+                : '1px solid rgba(17, 87, 64, 0.2)',
+              color: isTyping ? 'text.secondary' : '#115740'
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>

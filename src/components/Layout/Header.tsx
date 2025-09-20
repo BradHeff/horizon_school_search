@@ -14,7 +14,6 @@ import {
   Login as LoginIcon,
   Logout as LogoutIcon,
   Support as SupportIcon,
-  School as SchoolIcon,
 } from '@mui/icons-material';
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { clearUser, setLoading } from '../../store/slices/authSlice';
@@ -55,7 +54,7 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
       position="static"
       elevation={0}
       sx={{
-        background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #667eea 100%)',
+        background: 'linear-gradient(135deg, #115740 0%, #1a7a5a 50%, #22a06b 100%)',
         borderBottom: '1px solid rgba(255,255,255,0.1)',
       }}
     >
@@ -63,16 +62,21 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box
             sx={{
-              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-              borderRadius: '12px',
               padding: '8px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
             }}
           >
-            <SchoolIcon sx={{ color: 'white', fontSize: 28 }} />
+            <img
+              src="/horizon.png"
+              alt="Horizon Christian School"
+              style={{
+                height: 64,
+                width: 'auto',
+                objectFit: 'contain'
+              }}
+            />
           </Box>
           <Box>
             <Typography
@@ -138,7 +142,7 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
                     width: 44,
                     height: 44,
                     border: '2px solid rgba(255,255,255,0.3)',
-                    background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                    background: 'linear-gradient(135deg, #FFC72C 0%, #EAAA00 100%)',
                     color: 'white',
                     fontWeight: 'bold',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
