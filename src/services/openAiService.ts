@@ -44,32 +44,59 @@ class OpenAIService {
   }
 
   async chatWithAI(messages: ChatMessage[], maxTokens?: number): Promise<string> {
+    console.log('🤖 ChatWithAI called:', { 
+      messagesCount: messages.length, 
+      maxTokens, 
+      apiDisabled: this.apiDisabled 
+    });
+
     // If API is disabled due to previous errors, return fallback message
     if (this.apiDisabled) {
+      console.log('🚫 API disabled, returning fallback message');
       return 'I apologize, but AI chat is currently unavailable. The service will use mock data for search results instead.';
     }
 
     try {
       const config = await this.ensureConfig();
+      console.log('🔑 API Key status:', { 
+        hasKey: !!config.openAi.apiKey, 
+        keyLength: config.openAi.apiKey?.length || 0,
+        model: config.openAi.model 
+      });
 
       // Check if API key is properly configured
       if (!config.openAi.apiKey || config.openAi.apiKey === 'your-openai-api-key-here' || config.openAi.apiKey.length < 10) {
+        console.log('❌ API key not configured properly');
         this.apiDisabled = true;
         return 'I apologize, but AI chat is not properly configured. Please check your OpenAI API settings.';
       }
 
+      // Use a simpler system prompt for instant answers
       const systemMessage: ChatMessage = {
         role: 'system',
-        content: config.openAi.systemPrompts.chat
+        content: 'You are a helpful assistant. Provide clear, accurate answers based on the information provided.'
       };
 
+      console.log('📤 Calling OpenAI with messages:', messages.length);
+      console.log('📤 Messages being sent:', messages.map(m => ({ role: m.role, contentLength: m.content.length })));
       const response = await this.callOpenAI([systemMessage, ...messages], maxTokens);
+      console.log('📨 Full OpenAI response:', response);
+      console.log('📨 OpenAI response received:', { 
+        hasContent: !!response.choices?.[0]?.message?.content,
+        contentLength: response.choices?.[0]?.message?.content?.length || 0,
+        actualContent: response.choices?.[0]?.message?.content
+      });
 
-      return response.choices[0]?.message?.content || 'I apologize, but I was unable to process your request at this time.';
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        console.log('⚠️ Empty content from OpenAI - full response:', JSON.stringify(response, null, 2));
+        return 'I apologize, but I was unable to process your request at this time.';
+      }
+
+      return content;
     } catch (error: unknown) {
-      console.warn('AI Chat failed, disabling API:', error);
-      // Disable API for future requests to avoid repeated errors
-      this.apiDisabled = true;
+      console.error('❌ AI Chat failed:', error);
+      // Don't disable API permanently for chat failures, might be temporary
       return 'I apologize, but I am experiencing technical difficulties with the AI service. Please try again later.';
     }
   }

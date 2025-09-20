@@ -1,6 +1,6 @@
+import { getConfig } from '../config/app-config';
 import type { SearchResult } from '../store/slices/searchSlice';
 import { openAIService } from './openAiService';
-import { getConfig } from '../config/app-config';
 
 export interface LangSearchResult {
   id: string;
@@ -45,10 +45,10 @@ export class WebSearchService {
     console.log('🤖 Generating AI instant answer for:', query);
 
     try {
-      // Create context from search results
-      const context = searchResults.slice(0, 5).map(result =>
-        `${result.title}: ${result.description} (Source: ${result.url})`
-      ).join('\n\n');
+      // Create shorter context from search results to reduce token usage
+      const context = searchResults.slice(0, 3).map(result =>
+        `${result.title.substring(0, 80)}...: ${result.description.substring(0, 120)}...`
+      ).join('\n');
 
       // Create different prompts based on user role
       let prompt: string;
@@ -56,30 +56,22 @@ export class WebSearchService {
 
       if (userRole === 'staff') {
         // Staff get more detailed responses with less restrictions
-        systemMessage = 'You are a knowledgeable assistant providing accurate information based on search results. Give comprehensive yet concise answers.';
-        prompt = `Based on the search results below, provide a direct, accurate answer to: "${query}"
-
-Search Results:
-${context}
-
-Requirements:
-- Provide a clear, informative answer (2-4 sentences)
-- Include specific facts and details from the sources
-- Use professional language
-- If insufficient information, state what additional details would be needed
-
-Answer:`;
-      } else {
-        // Guest/Student get simple, direct answers
-        systemMessage = 'You are a helpful assistant for students. Give short, simple, direct answers to questions based only on the search results provided. No explanations, no extra information, just the answer.';
+        systemMessage = 'Answer questions based on search results. Be accurate and concise.';
         prompt = `Question: "${query}"
 
-Sources:
+Results:
 ${context}
 
-Give a short, simple answer (1-2 sentences maximum). Only answer what was asked. Use simple words.
+Answer (2-3 sentences):`;
+      } else {
+        // Guest/Student get simple, direct answers
+        systemMessage = 'Answer questions simply for students using the search results.';
+        prompt = `Question: "${query}"
 
-Answer:`;
+Results:
+${context}
+
+Simple answer (1-2 sentences):`;
       }
 
       const aiResponse = await openAIService.chatWithAI([
@@ -91,7 +83,7 @@ Answer:`;
           role: 'user',
           content: prompt
         }
-      ], userRole === 'staff' ? 400 : 200); // Staff get more tokens, students get concise answers
+      ], userRole === 'staff' ? 500 : 400); // Increased token limits to handle longer prompts
 
       console.log('🤖 Raw AI response:', aiResponse);
       console.log('🤖 AI response length:', aiResponse?.length || 0);
