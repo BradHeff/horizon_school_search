@@ -96,8 +96,17 @@ class OpenAIService {
       return content;
     } catch (error: unknown) {
       console.error('❌ AI Chat failed:', error);
-      // Don't disable API permanently for chat failures, might be temporary
-      return 'I apologize, but I am experiencing technical difficulties with the AI service. Please try again later.';
+
+      // Provide specific error messages based on error type
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.includes('timeout')) {
+        return 'I apologize, but the AI service is taking longer than expected to respond. This might be due to high demand. Please try asking your question again, or try a shorter, more specific question.';
+      } else if (errorMessage.includes('network')) {
+        return 'I\'m having trouble connecting to the AI service right now. Please check your internet connection and try again.';
+      } else {
+        return 'I apologize, but I am experiencing technical difficulties with the AI service. Please try again later or contact IT support if this issue persists.';
+      }
     }
   }
 
@@ -118,7 +127,7 @@ class OpenAIService {
 
     // Create a timeout promise to prevent long waits
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout - taking too long for children')), 15000); // 15 second timeout
+      setTimeout(() => reject(new Error('Request timeout - AI response taking too long')), 30000); // 30 second timeout
     });
 
     const fetchPromise = fetch(this.baseUrl, {

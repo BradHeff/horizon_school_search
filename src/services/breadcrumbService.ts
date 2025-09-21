@@ -25,10 +25,10 @@ class BreadcrumbService {
 
   async getRecentItems(limit: number = 8): Promise<BreadcrumbItem[]> {
     await this.fetchRecentData();
-    
+
     const items: BreadcrumbItem[] = [];
-    
-    // Add recent searches
+
+    // Add recent searches (always show for better UX)
     const searchItems = this.recentSearches.slice(0, Math.floor(limit / 2)).map(search => ({
       id: search.searchId,
       type: 'search' as const,
@@ -38,7 +38,7 @@ class BreadcrumbService {
       category: search.category,
       onClick: () => this.handleSearchClick(search)
     }));
-    
+
     // Add recent chats (staff only)
     const chatItems = this.recentChats.slice(0, Math.floor(limit / 2)).map(chat => ({
       id: chat.sessionId,
@@ -53,7 +53,7 @@ class BreadcrumbService {
     // Merge and sort by timestamp
     items.push(...searchItems, ...chatItems);
     items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    
+
     return items.slice(0, limit);
   }
 
@@ -87,7 +87,7 @@ class BreadcrumbService {
 
   private async fetchRecentData(): Promise<void> {
     const now = Date.now();
-    
+
     // Check if we need to fetch fresh data
     if (now - this.lastFetch < this.CACHE_DURATION) {
       return;
@@ -112,35 +112,54 @@ class BreadcrumbService {
       // Check frontend authentication first, then backend as fallback
       const isFrontendAuth = AuthService.isAuthenticated();
       const isBackendAuth = backendService.isAuthenticated();
-      
+
       if (isFrontendAuth || isBackendAuth) {
         console.log('📋 User authenticated:', { frontend: isFrontendAuth, backend: isBackendAuth });
         console.log('📋 Fetching breadcrumb data...');
+
+        // Add a small delay to ensure search has been processed by backend
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         const [searches, chats] = await Promise.all([
           backendService.getRecentSearches(5).catch(err => {
-            console.warn('Failed to fetch recent searches:', err);
+            console.warn('📋 Failed to fetch recent searches:', err);
             return [];
           }),
           backendService.getRecentChats(5).catch(err => {
-            console.warn('Failed to fetch recent chats:', err);
+            console.warn('📋 Failed to fetch recent chats:', err);
             return [];
           })
         ]);
-        
-        this.recentSearches = searches || [];
-        this.recentChats = chats || [];
+
+        console.log('📋 Raw backend response:', {
+          searchesReceived: searches.length,
+          chatsReceived: chats.length,
+          searchData: searches,
+          chatData: chats
+        });
+
+        // Always merge with existing cache for authenticated users
+        // This ensures local searches show up even if backend is down
+        if (searches.length > 0) {
+          this.recentSearches = searches;
+        }
+        if (chats.length > 0) {
+          this.recentChats = chats;
+        }
+
         this.lastFetch = now;
         this.fetchRetryCount = 0; // Reset retry count on success
-        
-        console.log('📋 Breadcrumb data refreshed:', { 
-          searches: this.recentSearches.length, 
-          chats: this.recentChats.length 
+
+        console.log('📋 Breadcrumb data refreshed:', {
+          searches: this.recentSearches.length,
+          chats: this.recentChats.length,
+          note: 'Preserving existing cache if backend returned empty'
         });
       } else {
         console.log('📋 User not authenticated, skipping breadcrumb fetch');
       }
     } catch (error) {
-      console.error('Failed to fetch recent data for breadcrumbs:', error);
+      console.error('📋 Failed to fetch recent data for breadcrumbs:', error);
       this.fetchRetryCount++;
       // Set lastFetch anyway to prevent immediate retry
       this.lastFetch = now;

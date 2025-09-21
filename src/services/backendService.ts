@@ -425,8 +425,15 @@ class BackendService {
     responseTime?: number;
   }): Promise<string | null> {
     try {
-      const response = await this.makeRequest<{ 
-        success: boolean; 
+      console.log('📊 Tracking search with auth:', {
+        query: searchData.query,
+        category: searchData.category,
+        userRole: searchData.userRole,
+        hasToken: !!this.accessToken
+      });
+
+      const response = await this.makeRequest<{
+        success: boolean;
         searchId: string | null;
       }>('/searches/track', {
         method: 'POST',
@@ -436,11 +443,12 @@ class BackendService {
           userAgent: navigator.userAgent,
           deviceType: this.getDeviceType(),
         }),
-      }, false); // Don't require auth - endpoint handles optional auth
-      
+      }, true); // Require auth for proper search tracking
+
+      console.log('📊 Backend track response:', response);
       return response.success ? response.searchId : null;
     } catch (error) {
-      console.error('Failed to track search:', error);
+      console.error('📊 Failed to track search:', error);
       return null;
     }
   }

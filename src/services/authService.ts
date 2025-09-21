@@ -12,58 +12,17 @@ export class AuthService {
 
   static async login(rememberMe: boolean = false): Promise<User | null> {
     try {
-      // Use redirect for production to avoid COOP policy issues
-      const isProduction = window.location.hostname.includes('horizon.sa.edu.au');
-      
-      if (isProduction) {
-        // Store remember me preference before redirect
-        if (rememberMe) {
-          sessionStorage.setItem('horizon_remember_me', 'true');
-        }
-        await msalInstance.loginRedirect(loginRequest);
-        return null; // Will complete on redirect return
+      // Ensure MSAL is properly initialized before login
+      const { initializeMSAL, msalInstance, loginRequest } = await import('../config/msalConfig');
+      await initializeMSAL();
+
+      // Always use redirect authentication for same-tab experience
+      // Store remember me preference before redirect
+      if (rememberMe) {
+        sessionStorage.setItem('horizon_remember_me', 'true');
       }
-      
-      const loginResponse: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
-
-      if (loginResponse.account) {
-        // Fetch user licenses for role determination
-        const licenses = await this.fetchUserLicenses(loginResponse.accessToken);
-        const user = this.mapAccountToUserWithLicenses(loginResponse.account, licenses);
-
-        // Store user data in backend
-        try {
-          const backendResponse = await backendService.login({
-            azureId: loginResponse.account.homeAccountId,
-            email: loginResponse.account.username,
-            name: loginResponse.account.name || user.name,
-            displayName: loginResponse.account.name,
-            licenses,
-            rememberMe
-          });
-
-          console.log('✅ User data stored in backend');
-          
-          // Update user with backend settings if available
-          if (backendResponse.success && backendResponse.user.settings) {
-            user.settings = {
-              aiMode: backendResponse.user.settings.aiMode || 'search',
-              chatEnabled: backendResponse.user.settings.chatEnabled || false,
-              rememberMe: backendResponse.user.settings.rememberMe || rememberMe
-            };
-          }
-        } catch (backendError) {
-          console.warn('Backend login failed, continuing with local auth:', backendError);
-          // Continue with local authentication even if backend fails
-        }
-
-        if (rememberMe) {
-          this.setRememberMeCookie(user);
-        }
-
-        return user;
-      }
-      return null;
+      await msalInstance.loginRedirect(loginRequest);
+      return null; // Will complete on redirect return
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -83,7 +42,7 @@ export class AuthService {
       // Clear all local caches
       this.clearRememberMeCookie();
       this.clearUserSettings();
-      
+
       // Clear breadcrumb cache
       try {
         const { breadcrumbService } = await import('./breadcrumbService');
@@ -91,8 +50,12 @@ export class AuthService {
       } catch (importError) {
         console.warn('Failed to clear breadcrumb cache:', importError);
       }
-      
-      await msalInstance.logoutPopup();
+
+      // Ensure MSAL is properly initialized before logout
+      const { initializeMSAL, msalInstance } = await import('../config/msalConfig');
+      await initializeMSAL();
+
+      await msalInstance.logoutRedirect();
     } catch (error) {
       console.error('Logout failed:', error);
       throw error;
@@ -343,7 +306,11 @@ export class AuthService {
   static async handleRedirectResult(): Promise<User | null> {
     try {
       console.log('🔄 AuthService.handleRedirectResult() called');
-      
+
+      // Ensure MSAL is properly initialized before handling redirect
+      const { initializeMSAL, msalInstance } = await import('../config/msalConfig');
+      await initializeMSAL();
+
       const response = await msalInstance.handleRedirectPromise();
       console.log('🔄 MSAL handleRedirectPromise() response:', {
         hasResponse: !!response,

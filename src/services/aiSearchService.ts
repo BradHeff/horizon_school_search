@@ -171,34 +171,47 @@ export class AISearchService {
       }));
       
       // Track search in backend if user is authenticated
+      let backendSearchId: string | null = null;
       try {
         const user = await AuthService.getCurrentUser();
         if (user) {
           const { default: backendService } = await import('./backendService');
-          const searchId = await backendService.trackSearch({
+          backendSearchId = await backendService.trackSearch({
             query,
             resultCount: searchResults.length,
             category: this.categorizeQuery(query),
             userRole
           });
-          console.log('📊 Search tracked in backend');
-
-          // Add to breadcrumb cache for real-time updates
-          if (searchId) {
-            const { default: breadcrumbService } = await import('./breadcrumbService');
-            breadcrumbService.addRecentSearch({
-              searchId,
-              query,
-              searchType: 'ai',
-              category: this.categorizeQuery(query),
-              resultCount: searchResults.length,
-              hasAiAnswer: false // Will be updated if AI answer is generated
-            });
-          }
+          console.log('📊 Search tracked in backend:', backendSearchId);
         }
       } catch (trackingError) {
-        console.warn('Search tracking failed:', trackingError);
-        // Don't fail the search if tracking fails
+        console.warn('📊 Search tracking failed (backend unavailable):', trackingError);
+        // Continue with local breadcrumb tracking even if backend fails
+      }
+
+      // Always add to breadcrumb cache for real-time updates, even if backend tracking failed
+      // This works for both authenticated and guest users for better UX
+      try {
+        const { default: breadcrumbService } = await import('./breadcrumbService');
+        breadcrumbService.addRecentSearch({
+          searchId: backendSearchId || `local-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+          query,
+          searchType: 'ai',
+          category: this.categorizeQuery(query),
+          resultCount: searchResults.length,
+          hasAiAnswer: false // Will be updated if AI answer is generated
+        });
+        console.log('📋 Search added to breadcrumb cache');
+
+        // Force refresh from backend after tracking for authenticated users
+        if (backendSearchId) {
+          console.log('📋 Forcing breadcrumb refresh after backend tracking...');
+          setTimeout(() => {
+            breadcrumbService.refreshData();
+          }, 2000); // Give backend time to process
+        }
+      } catch (breadcrumbError) {
+        console.warn('📋 Breadcrumb cache update failed:', breadcrumbError);
       }
       
       console.log('✅ Search completed successfully:', searchResults.length, 'results');

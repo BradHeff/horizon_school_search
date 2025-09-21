@@ -8,7 +8,7 @@ const fallbackConfig: Configuration = {
     authority: 'https://login.microsoftonline.com/48079679-d6e0-4844-9476-5bbee68b888a',
     redirectUri: `${window.location.origin}/redirect`,
     postLogoutRedirectUri: window.location.origin,
-    navigateToLoginRequestUrl: false,
+    navigateToLoginRequestUrl: true,
   },
   cache: {
     cacheLocation: 'localStorage',
@@ -21,7 +21,7 @@ const fallbackConfig: Configuration = {
         console.log(`MSAL ${level}: ${message}`);
       },
       piiLoggingEnabled: false,
-      logLevel: LogLevel.Warning,
+      logLevel: LogLevel.Verbose,
     },
   },
 };
@@ -79,7 +79,7 @@ const initializeMSALInternal = async (): Promise<void> => {
         authority: config.azureAd.authority,
         redirectUri: config.azureAd.redirectUri,
         postLogoutRedirectUri: config.azureAd.redirectUri,
-        navigateToLoginRequestUrl: false,
+        navigateToLoginRequestUrl: true,
       },
       cache: {
         cacheLocation: 'localStorage',
@@ -92,7 +92,7 @@ const initializeMSALInternal = async (): Promise<void> => {
             console.log(`MSAL ${level}: ${message}`);
           },
           piiLoggingEnabled: false,
-          logLevel: LogLevel.Warning,
+          logLevel: LogLevel.Verbose,
         },
       },
     };

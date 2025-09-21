@@ -42,11 +42,6 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
 
   // Fetch breadcrumb items
   const fetchItems = useCallback(async () => {
-    if (!isAuthenticated) {
-      setItems([]);
-      return;
-    }
-
     try {
       setIsLoading(true);
       const [searches, chats] = await Promise.all([
@@ -65,7 +60,7 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, maxItems]);
+  }, [maxItems]);
 
   // Initial load and refresh when user changes
   useEffect(() => {
@@ -132,7 +127,7 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
     item.onClick();
   };
 
-  if (!isAuthenticated || items.length === 0) {
+  if (items.length === 0) {
     return null;
   }
 
@@ -169,7 +164,7 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
         <Typography
           variant="caption"
           sx={{
-            color: theme.palette.text.secondary,
+            color: 'white',
             whiteSpace: 'nowrap',
             mr: 1,
             fontWeight: 500
@@ -194,7 +189,7 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
               sx={{
                 minWidth: 'auto',
                 maxWidth: 200,
-                backgroundColor: getCategoryColor(item.category || 'general'),
+                backgroundColor: '#22a06b',
                 color: 'white',
                 '& .MuiChip-icon': {
                   color: 'white',
@@ -208,7 +203,7 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
                   textOverflow: 'ellipsis'
                 },
                 '&:hover': {
-                  backgroundColor: getCategoryColor(item.category || 'general'),
+                  backgroundColor: '#22a06b',
                   filter: 'brightness(1.1)',
                   transform: 'translateY(-1px)',
                   boxShadow: theme.shadows[4]
@@ -227,9 +222,10 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
             disabled={isLoading}
             sx={{
               ml: 1,
-              color: theme.palette.text.secondary,
+              color: 'white',
               '&:hover': {
-                color: theme.palette.primary.main,
+                color: 'white',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
               }
             }}
           >
