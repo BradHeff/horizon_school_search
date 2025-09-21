@@ -1,33 +1,33 @@
 import {
-  Analytics,
-  Assignment,
-  Chat as ChatIcon,
-  History,
-  Lightbulb as IdeaIcon,
-  LibraryBooks,
-  AutoAwesome as MagicIcon,
-  School,
-  Search as SearchIcon,
-  TrendingUp as TrendingIcon,
+    Analytics,
+    Assignment,
+    Chat as ChatIcon,
+    History,
+    Lightbulb as IdeaIcon,
+    LibraryBooks,
+    AutoAwesome as MagicIcon,
+    School,
+    Search as SearchIcon,
+    TrendingUp as TrendingIcon,
 } from '@mui/icons-material';
 import {
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Fade,
-  Grid,
-  Grow,
-  InputAdornment,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Slide,
-  TextField,
-  Typography,
+    Alert,
+    Box,
+    Card,
+    CardContent,
+    Chip,
+    CircularProgress,
+    Fade,
+    Grid,
+    Grow,
+    InputAdornment,
+    List,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    Slide,
+    TextField,
+    Typography,
 } from '@mui/material';
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
@@ -35,6 +35,9 @@ import type { ChatMessage } from '../../services/aiSearchService';
 import { AISearchService } from '../../services/aiSearchService';
 import { WebSearchService } from '../../services/webSearchService';
 import { addToHistory, setAIAnswer, setError, setGeneratingAnswer, setLoading, setQuery, setResults } from '../../store/slices/searchSlice';
+import BreadcrumbErrorBoundary from '../Breadcrumbs/BreadcrumbErrorBoundary';
+import Breadcrumbs from '../Breadcrumbs/Breadcrumbs';
+import CompactBreadcrumbs from '../Breadcrumbs/CompactBreadcrumbs';
 import AIInstantAnswerComponent from './AIInstantAnswer';
 import LoadingSkeleton from './LoadingSkeleton';
 
@@ -48,6 +51,7 @@ const SearchSection: React.FC = () => {
   const [chatMessages, setChatMessages] = React.useState<ChatMessage[]>([]);
   const [chatResponse, setChatResponse] = React.useState<string>('');
   const [isSearching, setIsSearching] = React.useState(false);
+  const [isChatLoading, setIsChatLoading] = React.useState(false);
 
   // Sync AI mode with user settings
   React.useEffect(() => {
@@ -67,6 +71,36 @@ const SearchSection: React.FC = () => {
       return unsubscribe;
     }
   }, [user, dispatch]);
+
+  // Create a ref to store the latest performSearch function
+  const performSearchRef = React.useRef<((query: string) => Promise<void>) | null>(null);
+
+  // Listen for breadcrumb search events
+  React.useEffect(() => {
+    const handleBreadcrumbSearch = (event: CustomEvent) => {
+      const { query: searchQuery, searchId, category } = event.detail;
+      console.log('🔍 Breadcrumb search triggered:', { searchQuery, searchId, category });
+      
+      // Set the query in the input
+      dispatch(setQuery(searchQuery));
+      
+      // Perform the search using the ref
+      if (searchQuery.trim() && performSearchRef.current) {
+        performSearchRef.current(searchQuery.trim());
+      }
+    };
+
+    window.addEventListener('breadcrumb-search', handleBreadcrumbSearch as EventListener);
+
+    return () => {
+      window.removeEventListener('breadcrumb-search', handleBreadcrumbSearch as EventListener);
+    };
+  }, [dispatch]);
+
+  // Update the performSearch ref whenever the function changes
+  React.useEffect(() => {
+    performSearchRef.current = performSearch;
+  });
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newQuery = event.target.value;
@@ -117,7 +151,7 @@ const SearchSection: React.FC = () => {
       }
 
       // Prevent duplicate submissions if already searching
-      if (isSearching || isLoading) {
+      if (isSearching || isLoading || isChatLoading) {
         console.log('🚫 Ignoring Enter key - search already in progress');
         return;
       }
@@ -179,7 +213,7 @@ const SearchSection: React.FC = () => {
   };
 
   const handleChatMessage = async (message: string) => {
-    dispatch(setLoading(true));
+    setIsChatLoading(true);
     dispatch(addToHistory(message));
     dispatch(setResults([]));
     dispatch(setQuery('')); // Clear the input after sending chat message
@@ -201,7 +235,7 @@ const SearchSection: React.FC = () => {
     } catch (err) {
       dispatch(setError('Chat failed. Please try again.'));
     } finally {
-      dispatch(setLoading(false));
+      setIsChatLoading(false);
     }
   };
 
@@ -360,12 +394,26 @@ const SearchSection: React.FC = () => {
                           )}
                         </InputAdornment>
                       ),
-                      endAdornment: isLoading && (
+                      endAdornment: (isLoading || isChatLoading) && (
                         <InputAdornment position="end">
                           <CircularProgress size={24} sx={{ color: '#115740' }} />
                         </InputAdornment>
                       ),
                     }}
+                  />
+
+                  {/* Compact Breadcrumbs for recent searches and chats */}
+                  <CompactBreadcrumbs
+                    onSearchClick={(searchQuery) => {
+                      dispatch(setQuery(searchQuery));
+                      performSearch(searchQuery);
+                    }}
+                    onChatClick={(sessionId, title) => {
+                      // Handle chat click if needed
+                      console.log('Open chat session:', sessionId, title);
+                    }}
+                    maxItems={5}
+                    maxQueryLength={30}
                   />
                 </Grid>
               </Grid>
@@ -430,6 +478,18 @@ const SearchSection: React.FC = () => {
         </Card>
       </Fade>
 
+      {/* Breadcrumbs Section */}
+      {isAuthenticated && (
+        <BreadcrumbErrorBoundary fallbackMessage="Recent activity temporarily unavailable">
+          <Breadcrumbs 
+            showSearches={true}
+            showChats={user?.settings?.chatEnabled}
+            maxItems={6}
+            compact={false}
+          />
+        </BreadcrumbErrorBoundary>
+      )}
+
       {/* Results Section */}
       <Card
         elevation={0}
@@ -478,7 +538,85 @@ const SearchSection: React.FC = () => {
             </Fade>
           )}
 
-          {chatResponse && user?.role === 'staff' && aiMode === 'chat' && (
+          {/* AI Thinking Indicator for Chat Mode */}
+          {isChatLoading && user?.role === 'staff' && aiMode === 'chat' && (
+            <Fade in timeout={300}>
+              <Box sx={{ p: 2.5 }}>
+                <Card
+                  elevation={0}
+                  sx={{
+                    borderRadius: '12px',
+                    background: 'rgba(16, 185, 129, 0.05)',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    mb: 2
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <ChatIcon sx={{ color: '#10b981', fontSize: 24 }} />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            color: '#10b981',
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            mb: 0.5
+                          }}
+                        >
+                          AI Assistant is thinking...
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: 'text.secondary', fontSize: '0.875rem' }}
+                          >
+                            Processing your request
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            {[0, 1, 2].map((i) => (
+                              <Box
+                                key={i}
+                                sx={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  backgroundColor: '#10b981',
+                                  animation: 'pulse 1.5s ease-in-out infinite',
+                                  animationDelay: `${i * 0.3}s`,
+                                  '@keyframes pulse': {
+                                    '0%, 80%, 100%': {
+                                      opacity: 0.3,
+                                      transform: 'scale(0.8)'
+                                    },
+                                    '40%': {
+                                      opacity: 1,
+                                      transform: 'scale(1.2)'
+                                    }
+                                  }
+                                }}
+                              />
+                            ))}
+                          </Box>
+                        </Box>
+                      </Box>
+                      <CircularProgress
+                        size={20}
+                        sx={{
+                          color: '#10b981',
+                          '& .MuiCircularProgress-circle': {
+                            strokeLinecap: 'round'
+                          }
+                        }}
+                      />
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Box>
+            </Fade>
+          )}
+
+          {chatResponse && user?.role === 'staff' && aiMode === 'chat' && !isChatLoading && (
             <Fade in timeout={300}>
               <Box sx={{ p: 2.5 }}>
                 <Typography

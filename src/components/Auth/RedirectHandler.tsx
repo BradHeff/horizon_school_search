@@ -1,13 +1,13 @@
-import React from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
-import { useMsal } from '@azure/msal-react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../hooks/redux';
-import { setUser } from '../../store/slices/authSlice';
 import { AuthService } from '../../services/authService';
+import { setRememberMe, setUser } from '../../store/slices/authSlice';
 
 const RedirectHandler: React.FC = () => {
-  const { instance } = useMsal();
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const [isProcessing, setIsProcessing] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -15,30 +15,72 @@ const RedirectHandler: React.FC = () => {
     const handleRedirect = async () => {
       try {
         setIsProcessing(true);
+        console.log('🔄 Processing authentication redirect...');
+        console.log('🔄 Current URL:', window.location.href);
+        console.log('🔄 URL parameters:', window.location.search);
 
-        // Handle the redirect response
-        const response = await instance.handleRedirectPromise();
+        // Wait a bit to ensure MSAL is fully initialized
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        if (response) {
-          // Login successful
-          const user = await AuthService.getCurrentUser();
-          if (user) {
-            dispatch(setUser(user));
-          }
+        // Use AuthService's handleRedirectResult method
+        const user = await AuthService.handleRedirectResult();
 
-          // Redirect to main page
-          window.location.replace('/');
+        console.log('🔄 AuthService.handleRedirectResult() returned:', user);
+
+        if (user) {
+          console.log('✅ Authentication successful:', {
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            id: user.id
+          });
+          
+          // Dispatch to Redux store
+          dispatch(setUser(user));
+          dispatch(setRememberMe(true)); // User went through login flow
+          
+          console.log('✅ User dispatched to Redux store');
+          
+          // Store user in localStorage to persist across navigation
+          localStorage.setItem('horizon_auth_user', JSON.stringify(user));
+          localStorage.setItem('horizon_auth_remember', 'true');
+          
+          // Brief delay to show success, then navigate
+          setTimeout(() => {
+            console.log('🔄 Navigating to home page...');
+            navigate('/', { replace: true });
+          }, 1500);
         } else {
-          // No response or already handled
-          window.location.replace('/');
+          console.log('⚠️ No authentication result, redirecting to home');
+          console.log('⚠️ This might mean MSAL handleRedirectPromise() returned null');
+          
+          // Check if there are any MSAL accounts
+          const { msalInstance } = await import('../../config/msalConfig');
+          const accounts = msalInstance.getAllAccounts();
+          console.log('🔄 MSAL accounts found:', accounts.length);
+          
+          if (accounts.length > 0) {
+            console.log('🔄 Found MSAL account, trying getCurrentUser()');
+            const currentUser = await AuthService.getCurrentUser();
+            if (currentUser) {
+              console.log('✅ Got user from getCurrentUser():', currentUser.name);
+              dispatch(setUser(currentUser));
+              dispatch(setRememberMe(true));
+            }
+          }
+          
+          // Navigate after longer delay
+          setTimeout(() => {
+            navigate('/', { replace: true });
+          }, 2000);
         }
       } catch (error) {
         console.error('Authentication redirect error:', error);
         setError('Authentication failed. Please try again.');
 
-        // Redirect to main page after a delay
+        // Navigate to main page after a delay
         setTimeout(() => {
-          window.location.replace('/');
+          navigate('/', { replace: true });
         }, 3000);
       } finally {
         setIsProcessing(false);
@@ -46,7 +88,7 @@ const RedirectHandler: React.FC = () => {
     };
 
     handleRedirect();
-  }, [instance, dispatch]);
+  }, [dispatch, navigate]);
 
   return (
     <Box

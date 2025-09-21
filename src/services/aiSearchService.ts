@@ -170,12 +170,68 @@ export class AISearchService {
         relevance: 0.9 - (index * 0.1) // Decreasing relevance for sorting
       }));
       
+      // Track search in backend if user is authenticated
+      try {
+        const user = await AuthService.getCurrentUser();
+        if (user) {
+          const { default: backendService } = await import('./backendService');
+          const searchId = await backendService.trackSearch({
+            query,
+            resultCount: searchResults.length,
+            category: this.categorizeQuery(query),
+            userRole
+          });
+          console.log('📊 Search tracked in backend');
+
+          // Add to breadcrumb cache for real-time updates
+          if (searchId) {
+            const { default: breadcrumbService } = await import('./breadcrumbService');
+            breadcrumbService.addRecentSearch({
+              searchId,
+              query,
+              searchType: 'ai',
+              category: this.categorizeQuery(query),
+              resultCount: searchResults.length,
+              hasAiAnswer: false // Will be updated if AI answer is generated
+            });
+          }
+        }
+      } catch (trackingError) {
+        console.warn('Search tracking failed:', trackingError);
+        // Don't fail the search if tracking fails
+      }
+      
       console.log('✅ Search completed successfully:', searchResults.length, 'results');
       return searchResults;
     } catch (error) {
       console.error('❌ Search failed:', error);
       // Return empty array instead of old fallback methods
       return [];
+    }
+  }
+
+  // Categorize search query for tracking
+  private static categorizeQuery(query: string): string {
+    const lowerQuery = query.toLowerCase();
+    
+    if (lowerQuery.includes('lesson') || lowerQuery.includes('plan') || lowerQuery.includes('teaching')) {
+      return 'lesson-planning';
+    } else if (lowerQuery.includes('curriculum') || lowerQuery.includes('course')) {
+      return 'curriculum';
+    } else if (lowerQuery.includes('assessment') || lowerQuery.includes('test') || lowerQuery.includes('quiz')) {
+      return 'assessment';
+    } else if (lowerQuery.includes('research') || lowerQuery.includes('study') || lowerQuery.includes('analysis')) {
+      return 'research';
+    } else if (lowerQuery.includes('resource') || lowerQuery.includes('material') || lowerQuery.includes('tool')) {
+      return 'resources';
+    } else if (lowerQuery.includes('admin') || lowerQuery.includes('policy') || lowerQuery.includes('procedure')) {
+      return 'administration';
+    } else if (lowerQuery.includes('student') || lowerQuery.includes('support') || lowerQuery.includes('help')) {
+      return 'student-support';
+    } else if (lowerQuery.includes('technology') || lowerQuery.includes('computer') || lowerQuery.includes('digital')) {
+      return 'technology';
+    } else {
+      return 'general';
     }
   }
 

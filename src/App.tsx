@@ -43,11 +43,43 @@ const AppContent: React.FC = () => {
         // Initialize MSAL first
         await initializeMSAL();
 
-        if (AuthService.shouldRememberUser()) {
-          dispatch(setRememberMe(true));
-          const user = await AuthService.getCurrentUser();
-          if (user) {
-            dispatch(setUser(user));
+        // Only handle auto-login in main app, not redirect results
+        // Redirect results are handled by RedirectHandler component
+        if (window.location.pathname !== '/redirect') {
+          // First check if we have a user from redirect in localStorage
+          const redirectUser = localStorage.getItem('horizon_auth_user');
+          const redirectRemember = localStorage.getItem('horizon_auth_remember');
+          
+          if (redirectUser && redirectRemember) {
+            try {
+              const user = JSON.parse(redirectUser);
+              console.log('✅ Found redirect user in localStorage:', user.name);
+              dispatch(setUser(user));
+              dispatch(setRememberMe(true));
+              
+              // Clear the temporary storage
+              localStorage.removeItem('horizon_auth_user');
+              localStorage.removeItem('horizon_auth_remember');
+              return;
+            } catch (error) {
+              console.error('Failed to parse redirect user from localStorage:', error);
+              localStorage.removeItem('horizon_auth_user');
+              localStorage.removeItem('horizon_auth_remember');
+            }
+          }
+          
+          // Check for auto-login (backend or cookie-based)
+          const autoLoginUser = await AuthService.checkAutoLogin();
+          if (autoLoginUser) {
+            dispatch(setUser(autoLoginUser));
+            dispatch(setRememberMe(autoLoginUser.settings?.rememberMe || false));
+            console.log('✅ Auto-login successful');
+          } else if (AuthService.shouldRememberUser()) {
+            dispatch(setRememberMe(true));
+            const user = await AuthService.getCurrentUser();
+            if (user) {
+              dispatch(setUser(user));
+            }
           }
         }
       } catch (error) {

@@ -3,6 +3,7 @@
 
 export interface EnvConfig {
   API_BASE_URL: string;
+  BACKEND_URL: string;
   AZURE_CLIENT_ID: string;
   AZURE_AUTHORITY: string;
   AZURE_REDIRECT_URI: string;
@@ -81,6 +82,7 @@ const loadRuntimeConfig = async (): Promise<EnvConfig> => {
     // Fallback to build-time environment variables
     const fallbackConfig: EnvConfig = {
       API_BASE_URL: process.env.REACT_APP_API_BASE_URL || 'https://search.horizon.sa.edu.au',
+      BACKEND_URL: process.env.REACT_APP_BACKEND_URL || 'https://search-api.horizon.sa.edu.au',
       AZURE_CLIENT_ID: process.env.REACT_APP_AZURE_CLIENT_ID || 'd5ddc5ca-19c2-4aa9-b0ae-24888c573a22',
       AZURE_AUTHORITY: process.env.REACT_APP_AZURE_AUTHORITY || 'https://login.microsoftonline.com/48079679-d6e0-4844-9476-5bbee68b888a',
       AZURE_REDIRECT_URI: process.env.REACT_APP_AZURE_REDIRECT_URI || `${window.location.origin}/redirect`,

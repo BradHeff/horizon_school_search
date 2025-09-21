@@ -7,6 +7,11 @@ export interface User {
   role: 'guest' | 'student' | 'staff';
   profileImage?: string;
   groups?: string[];
+  settings?: {
+    aiMode: 'search' | 'chat';
+    chatEnabled: boolean;
+    rememberMe: boolean;
+  };
 }
 
 interface AuthState {

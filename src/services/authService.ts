@@ -3,6 +3,7 @@ import Cookies from 'js-cookie';
 import { detectUserRole, detectUserRoleFromLicenses } from '../config/app-config';
 import { loginRequest, msalInstance } from '../config/msalConfig';
 import { User } from '../store/slices/authSlice';
+import backendService from './backendService';
 
 export class AuthService {
   private static rememberMeCookieName = 'horizon_remember_me';
@@ -11,12 +12,50 @@ export class AuthService {
 
   static async login(rememberMe: boolean = false): Promise<User | null> {
     try {
+      // Use redirect for production to avoid COOP policy issues
+      const isProduction = window.location.hostname.includes('horizon.sa.edu.au');
+      
+      if (isProduction) {
+        // Store remember me preference before redirect
+        if (rememberMe) {
+          sessionStorage.setItem('horizon_remember_me', 'true');
+        }
+        await msalInstance.loginRedirect(loginRequest);
+        return null; // Will complete on redirect return
+      }
+      
       const loginResponse: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
 
       if (loginResponse.account) {
         // Fetch user licenses for role determination
         const licenses = await this.fetchUserLicenses(loginResponse.accessToken);
         const user = this.mapAccountToUserWithLicenses(loginResponse.account, licenses);
+
+        // Store user data in backend
+        try {
+          const backendResponse = await backendService.login({
+            azureId: loginResponse.account.homeAccountId,
+            email: loginResponse.account.username,
+            name: loginResponse.account.name || user.name,
+            displayName: loginResponse.account.name,
+            licenses,
+            rememberMe
+          });
+
+          console.log('✅ User data stored in backend');
+          
+          // Update user with backend settings if available
+          if (backendResponse.success && backendResponse.user.settings) {
+            user.settings = {
+              aiMode: backendResponse.user.settings.aiMode || 'search',
+              chatEnabled: backendResponse.user.settings.chatEnabled || false,
+              rememberMe: backendResponse.user.settings.rememberMe || rememberMe
+            };
+          }
+        } catch (backendError) {
+          console.warn('Backend login failed, continuing with local auth:', backendError);
+          // Continue with local authentication even if backend fails
+        }
 
         if (rememberMe) {
           this.setRememberMeCookie(user);
@@ -33,8 +72,26 @@ export class AuthService {
 
   static async logout(): Promise<void> {
     try {
+      // Logout from backend first
+      try {
+        await backendService.logout();
+      } catch (backendError) {
+        console.warn('Backend logout failed:', backendError);
+        // Continue with local logout even if backend fails
+      }
+
+      // Clear all local caches
       this.clearRememberMeCookie();
       this.clearUserSettings();
+      
+      // Clear breadcrumb cache
+      try {
+        const { breadcrumbService } = await import('./breadcrumbService');
+        breadcrumbService.clearCache();
+      } catch (importError) {
+        console.warn('Failed to clear breadcrumb cache:', importError);
+      }
+      
       await msalInstance.logoutPopup();
     } catch (error) {
       console.error('Logout failed:', error);
@@ -58,6 +115,42 @@ export class AuthService {
       return response.accessToken;
     } catch (error) {
       console.error('Silent token acquisition failed:', error);
+      return null;
+    }
+  }
+
+  static async checkAutoLogin(): Promise<User | null> {
+    try {
+      // First check if we have a valid refresh token in backend
+      if (backendService.hasValidRefreshToken()) {
+        const backendUser = await backendService.getCurrentUser();
+        
+        if (backendUser) {
+          console.log('🔄 Auto-login from backend successful');
+          
+          // Convert backend user to frontend user format
+          const user: User = {
+            id: backendUser.azureId,
+            name: backendUser.name,
+            email: backendUser.email,
+            role: backendUser.role,
+            settings: backendUser.settings
+          };
+
+          return user;
+        }
+      }
+
+      // Fallback to cookie-based remember me
+      const rememberedUser = this.getRememberedUser();
+      if (rememberedUser) {
+        console.log('🔄 Auto-login from cookie');
+        return rememberedUser;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Auto-login check failed:', error);
       return null;
     }
   }
@@ -245,6 +338,99 @@ export class AuthService {
   private static clearRememberMeCookie(): void {
     Cookies.remove(this.rememberMeCookieName);
     Cookies.remove(this.userCookieName);
+  }
+
+  static async handleRedirectResult(): Promise<User | null> {
+    try {
+      console.log('🔄 AuthService.handleRedirectResult() called');
+      
+      const response = await msalInstance.handleRedirectPromise();
+      console.log('🔄 MSAL handleRedirectPromise() response:', {
+        hasResponse: !!response,
+        hasAccount: !!(response?.account),
+        accountId: response?.account?.homeAccountId,
+        username: response?.account?.username
+      });
+      
+      if (response && response.account) {
+        console.log('✅ Valid MSAL response with account');
+        
+        // Check if remember me was set before redirect
+        const rememberMe = sessionStorage.getItem('horizon_remember_me') === 'true';
+        console.log('🔄 Remember me setting:', rememberMe);
+        sessionStorage.removeItem('horizon_remember_me');
+        
+        // Fetch user licenses for role determination
+        console.log('🔄 Fetching user licenses...');
+        const licenses = await this.fetchUserLicenses(response.accessToken);
+        console.log('🔄 User licenses:', licenses.length);
+        
+        const user = this.mapAccountToUserWithLicenses(response.account, licenses);
+        console.log('✅ Mapped user:', {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        });
+
+        // Store user data in backend
+        try {
+          console.log('🔄 Attempting backend login...');
+          const backendResponse = await backendService.login({
+            azureId: response.account.homeAccountId,
+            email: response.account.username,
+            name: response.account.name || user.name,
+            displayName: response.account.name,
+            licenses,
+            rememberMe
+          });
+
+          console.log('🔄 Backend response:', {
+            success: backendResponse.success,
+            hasUser: !!backendResponse.user
+          });
+
+          if (backendResponse.success && backendResponse.user) {
+            console.log('✅ Backend login successful');
+            if (rememberMe) {
+              this.setRememberMeCookie(user);
+            }
+            return user;
+          }
+        } catch (backendError) {
+          console.error('Backend login failed:', backendError);
+          console.log('⚠️ Continuing with frontend-only user');
+          // Continue with frontend-only user for now
+        }
+
+        if (rememberMe) {
+          this.setRememberMeCookie(user);
+        }
+        console.log('✅ Returning user (frontend-only or after backend failure)');
+        return user;
+      } else {
+        console.log('⚠️ No MSAL response or account - might be already handled');
+        
+        // Check if we already have an account in MSAL
+        const accounts = msalInstance.getAllAccounts();
+        console.log('🔄 Existing MSAL accounts:', accounts.length);
+        
+        if (accounts.length > 0) {
+          console.log('🔄 Found existing account, using it');
+          const account = accounts[0];
+          const licenses: any[] = []; // We don't have fresh token, so use empty licenses
+          const user = this.mapAccountToUserWithLicenses(account, licenses);
+          console.log('✅ Using existing account:', user.name);
+          return user;
+        }
+      }
+      
+      console.log('⚠️ No authentication result available');
+      return null;
+    } catch (error) {
+      console.error('Failed to handle redirect result:', error);
+      return null;
+    }
   }
 
   private static getRememberedUser(): User | null {

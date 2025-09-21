@@ -113,7 +113,7 @@ class OpenAIService {
     const requestBody = {
       model: config.openAi.model,
       messages,
-      max_completion_tokens: maxTokens || 100 // Use provided maxTokens or default to 100
+      max_completion_tokens: maxTokens || 1000 // Increased default to 1000 tokens for proper responses
     };
 
     // Create a timeout promise to prevent long waits

@@ -83,7 +83,7 @@ Simple answer (1-2 sentences):`;
           role: 'user',
           content: prompt
         }
-      ], userRole === 'staff' ? 500 : 400); // Increased token limits to handle longer prompts
+      ], userRole === 'staff' ? 1500 : 1200); // Increased token limits for proper AI responses
 
       console.log('🤖 Raw AI response:', aiResponse);
       console.log('🤖 AI response length:', aiResponse?.length || 0);
