@@ -1,6 +1,7 @@
 import { getConfig } from '../config/app-config';
 import type { SearchResult } from '../store/slices/searchSlice';
 import { openAIService } from './openAiService';
+import { cacheService } from './cacheService';
 
 export interface LangSearchResult {
   id: string;
@@ -44,6 +45,13 @@ export class WebSearchService {
   static async generateInstantAnswer(query: string, searchResults: SearchResult[], userRole: 'guest' | 'student' | 'staff' = 'guest'): Promise<AIInstantAnswer | null> {
     console.log('🤖 Generating AI instant answer for:', query);
 
+    // Check cache first
+    const cacheKey = `instant_answer:${query}`;
+    const cachedAnswer = cacheService.get<AIInstantAnswer>(cacheKey, userRole);
+    if (cachedAnswer) {
+      return cachedAnswer;
+    }
+
     try {
       // Create shorter context from search results to reduce token usage
       const context = searchResults.slice(0, 3).map(result =>
@@ -83,7 +91,7 @@ Simple answer (1-2 sentences):`;
           role: 'user',
           content: prompt
         }
-      ], userRole === 'staff' ? 1500 : 1200); // Increased token limits for proper AI responses
+      ], userRole === 'staff' ? 400 : 300); // Reduced token limits for faster responses
 
       console.log('🤖 Raw AI response:', aiResponse);
       console.log('🤖 AI response length:', aiResponse?.length || 0);
@@ -112,11 +120,16 @@ Simple answer (1-2 sentences):`;
 
       console.log('✅ AI instant answer generated successfully');
 
-      return {
+      const instantAnswer: AIInstantAnswer = {
         answer: aiResponse.trim(),
         sources,
         confidence
       };
+
+      // Cache the response for future use (5-minute TTL)
+      cacheService.set(cacheKey, instantAnswer, userRole, 5 * 60 * 1000);
+
+      return instantAnswer;
 
     } catch (error) {
       console.error('❌ Failed to generate AI instant answer:', error);
@@ -129,6 +142,13 @@ Simple answer (1-2 sentences):`;
    */
   static async searchWeb(query: string, userRole: 'guest' | 'student' | 'staff'): Promise<SearchResult[]> {
     console.log('🌐 WebSearchService: Starting LangSearch web search for:', { query, userRole });
+
+    // Check cache for search results first
+    const searchCacheKey = `search_results:${query}`;
+    const cachedResults = cacheService.get<SearchResult[]>(searchCacheKey, userRole);
+    if (cachedResults) {
+      return cachedResults;
+    }
 
     try {
       // Step 1: Get raw results from LangSearch
@@ -157,6 +177,9 @@ Simple answer (1-2 sentences):`;
         console.log('⚠️ No results passed domain filtering, using educational fallbacks');
         return this.getEducationalFallbacks(query);
       }
+
+      // Cache the successful results (3-minute TTL for search results)
+      cacheService.set(searchCacheKey, filteredResults, userRole, 3 * 60 * 1000);
 
       return filteredResults;
     } catch (error) {

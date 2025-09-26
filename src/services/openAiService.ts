@@ -122,12 +122,12 @@ class OpenAIService {
     const requestBody = {
       model: config.openAi.model,
       messages,
-      max_completion_tokens: maxTokens || 1000 // Increased default to 1000 tokens for proper responses
+      max_completion_tokens: maxTokens || 400 // Reduced to 400 tokens for faster responses
     };
 
     // Create a timeout promise to prevent long waits
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout - AI response taking too long')), 30000); // 30 second timeout
+      setTimeout(() => reject(new Error('Request timeout - AI response taking too long')), 10000); // 10 second timeout for faster UX
     });
 
     const fetchPromise = fetch(this.baseUrl, {

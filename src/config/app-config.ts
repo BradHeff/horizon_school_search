@@ -79,19 +79,30 @@ const loadRuntimeConfig = async (): Promise<EnvConfig> => {
     return configData;
   } catch (error) {
     console.warn('Failed to load runtime config, falling back to build-time environment variables:', error);
-    // Fallback to build-time environment variables
+    // Fallback to build-time environment variables with better defaults
     const fallbackConfig: EnvConfig = {
-      API_BASE_URL: process.env.REACT_APP_API_BASE_URL || 'https://search.horizon.sa.edu.au',
-      BACKEND_URL: process.env.REACT_APP_BACKEND_URL || 'https://search-api.horizon.sa.edu.au',
-      AZURE_CLIENT_ID: process.env.REACT_APP_AZURE_CLIENT_ID || 'd5ddc5ca-19c2-4aa9-b0ae-24888c573a22',
-      AZURE_AUTHORITY: process.env.REACT_APP_AZURE_AUTHORITY || 'https://login.microsoftonline.com/48079679-d6e0-4844-9476-5bbee68b888a',
+      API_BASE_URL: process.env.REACT_APP_API_BASE_URL || window.location.origin,
+      BACKEND_URL: process.env.REACT_APP_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3005`,
+      AZURE_CLIENT_ID: process.env.REACT_APP_AZURE_CLIENT_ID || '',
+      AZURE_AUTHORITY: process.env.REACT_APP_AZURE_AUTHORITY || '',
       AZURE_REDIRECT_URI: process.env.REACT_APP_AZURE_REDIRECT_URI || `${window.location.origin}/redirect`,
-      OPENAI_API_KEY: process.env.REACT_APP_OPENAI_API_KEY || 'your-openai-api-key',
-      OPENAI_MODEL: process.env.REACT_APP_OPENAI_MODEL || 'gpt-5-nano-2025-08-07',
-      SEARCH_API_ENDPOINT: process.env.REACT_APP_SEARCH_API_ENDPOINT || 'https://api.langsearch.com/v1/web-search',
-      SEARCH_API_KEY: process.env.REACT_APP_SEARCH_API_KEY || 'your-search-api-key',
+      OPENAI_API_KEY: process.env.REACT_APP_OPENAI_API_KEY || '',
+      OPENAI_MODEL: process.env.REACT_APP_OPENAI_MODEL || 'gpt-4o-mini',
+      SEARCH_API_ENDPOINT: process.env.REACT_APP_SEARCH_API_ENDPOINT || '',
+      SEARCH_API_KEY: process.env.REACT_APP_SEARCH_API_KEY || '',
       ENVIRONMENT: process.env.NODE_ENV || 'development'
     };
+
+    // Validate critical configuration values
+    const missingFields = [];
+    if (!fallbackConfig.AZURE_CLIENT_ID) missingFields.push('AZURE_CLIENT_ID');
+    if (!fallbackConfig.AZURE_AUTHORITY) missingFields.push('AZURE_AUTHORITY');
+    if (!fallbackConfig.OPENAI_API_KEY) missingFields.push('OPENAI_API_KEY');
+
+    if (missingFields.length > 0) {
+      console.warn('⚠️ Missing required configuration:', missingFields.join(', '));
+      console.warn('🔧 Please check your environment variables or /env.json file');
+    }
     runtimeEnv = fallbackConfig;
     return fallbackConfig;
   }
@@ -111,7 +122,7 @@ const createConfig = async (): Promise<AppConfig> => {
       clientId: env.AZURE_CLIENT_ID,
       authority: env.AZURE_AUTHORITY,
       redirectUri: env.AZURE_REDIRECT_URI || (env.ENVIRONMENT === 'production' ? 'https://search.horizon.sa.edu.au' : window.location.origin),
-      scopes: ['User.Read', 'GroupMember.Read.All']
+      scopes: ['User.Read']
     },
 
     // OpenAI Configuration
@@ -182,34 +193,34 @@ export const getConfig = (): Promise<AppConfig> => {
   return configPromise;
 };
 
-// For backwards compatibility, create a sync version with defaults for initial load
+// Create initial config with safe defaults
 const config: AppConfig = {
   api: {
-    baseUrl: 'https://search.horizon.sa.edu.au',
+    baseUrl: window.location.origin,
   },
   azureAd: {
-    clientId: 'loading...',
-    authority: 'loading...',
-    redirectUri: window.location.origin,
-    scopes: ['User.Read', 'GroupMember.Read.All']
+    clientId: '',
+    authority: '',
+    redirectUri: `${window.location.origin}/redirect`,
+    scopes: ['User.Read']
   },
   openAi: {
-    apiKey: 'loading...',
-    model: 'gpt-4',
+    apiKey: '',
+    model: 'gpt-4o-mini',
     systemPrompts: {
-      search: 'Loading...',
-      chat: 'Loading...'
+      search: 'You are a helpful search assistant for educational content.',
+      chat: 'You are an AI assistant for educational purposes.'
     }
   },
   search: {
-    apiEndpoint: 'loading...',
-    apiKey: 'loading...',
+    apiEndpoint: '',
+    apiKey: '',
   },
   roles: {
     mappings: {
       guest: [],
-      student: ['Office365-', 'student', 'students'],
-      staff: ['Office365-', 'faculty']
+      student: ['STUDENT', 'M365EDU_A1_STUDENT', 'M365EDU_A3_STUDENT'],
+      staff: ['FACULTY', 'STAFF', 'M365EDU_A3_FACULTY', 'M365EDU_A5_FACULTY']
     },
     defaultRole: 'guest'
   },
@@ -217,7 +228,7 @@ const config: AppConfig = {
     name: 'Horizon AI Search',
     schoolName: 'Horizon Christian School',
     version: '1.0.0',
-    environment: 'development'
+    environment: (process.env.NODE_ENV as 'development' | 'production') || 'development'
   }
 };
 

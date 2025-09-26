@@ -1,7 +1,7 @@
 import { AccountInfo, AuthenticationResult } from '@azure/msal-browser';
 import Cookies from 'js-cookie';
 import { detectUserRole, detectUserRoleFromLicenses } from '../config/app-config';
-import { loginRequest, msalInstance } from '../config/msalConfig';
+import { loginRequest, getMsalInstance } from '../config/msalConfig';
 import { User } from '../store/slices/authSlice';
 import backendService from './backendService';
 
@@ -13,8 +13,9 @@ export class AuthService {
   static async login(rememberMe: boolean = false): Promise<User | null> {
     try {
       // Ensure MSAL is properly initialized before login
-      const { initializeMSAL, msalInstance, loginRequest } = await import('../config/msalConfig');
+      const { initializeMSAL, getMsalInstance, loginRequest } = await import('../config/msalConfig');
       await initializeMSAL();
+      const msalInstance = await getMsalInstance();
 
       // Always use redirect authentication for same-tab experience
       // Store remember me preference before redirect
@@ -52,8 +53,9 @@ export class AuthService {
       }
 
       // Ensure MSAL is properly initialized before logout
-      const { initializeMSAL, msalInstance } = await import('../config/msalConfig');
+      const { initializeMSAL, getMsalInstance } = await import('../config/msalConfig');
       await initializeMSAL();
+      const msalInstance = await getMsalInstance();
 
       await msalInstance.logoutRedirect();
     } catch (error) {
@@ -64,6 +66,7 @@ export class AuthService {
 
   static async getTokenSilently(): Promise<string | null> {
     try {
+      const msalInstance = await getMsalInstance();
       const accounts = msalInstance.getAllAccounts();
       if (accounts.length === 0) {
         return null;
@@ -119,6 +122,7 @@ export class AuthService {
   }
 
   static async getCurrentUser(): Promise<User | null> {
+    const msalInstance = await getMsalInstance();
     const accounts = msalInstance.getAllAccounts();
     if (accounts.length > 0) {
       try {
@@ -144,9 +148,14 @@ export class AuthService {
     return Cookies.get(this.rememberMeCookieName) === 'true';
   }
 
-  static isAuthenticated(): boolean {
-    const accounts = msalInstance.getAllAccounts();
-    return accounts.length > 0 || this.shouldRememberUser();
+  static async isAuthenticated(): Promise<boolean> {
+    try {
+      const msalInstance = await getMsalInstance();
+      const accounts = msalInstance.getAllAccounts();
+      return accounts.length > 0 || this.shouldRememberUser();
+    } catch (error) {
+      return this.shouldRememberUser();
+    }
   }
 
   // User Settings Management
@@ -308,8 +317,9 @@ export class AuthService {
       console.log('🔄 AuthService.handleRedirectResult() called');
 
       // Ensure MSAL is properly initialized before handling redirect
-      const { initializeMSAL, msalInstance } = await import('../config/msalConfig');
+      const { initializeMSAL, getMsalInstance } = await import('../config/msalConfig');
       await initializeMSAL();
+      const msalInstance = await getMsalInstance();
 
       const response = await msalInstance.handleRedirectPromise();
       console.log('🔄 MSAL handleRedirectPromise() response:', {

@@ -91,7 +91,10 @@ const QuickLinksSection: React.FC = () => {
         </Typography>
         {isAuthenticated && user && (
           <Typography variant="body2" className="text-gray-600">
-            Personalized for {user.role}s
+            {user.role === 'guest' ? 'Guest links' :
+             user.role === 'student' ? 'Student links' :
+             user.role === 'staff' ? 'Staff links' :
+             `Personalized for ${user.role}s`}
           </Typography>
         )}
       </Box>

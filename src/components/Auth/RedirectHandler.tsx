@@ -55,7 +55,8 @@ const RedirectHandler: React.FC = () => {
           console.log('⚠️ This might mean MSAL handleRedirectPromise() returned null');
           
           // Check if there are any MSAL accounts
-          const { msalInstance } = await import('../../config/msalConfig');
+          const { getMsalInstance } = await import('../../config/msalConfig');
+          const msalInstance = await getMsalInstance();
           const accounts = msalInstance.getAllAccounts();
           console.log('🔄 MSAL accounts found:', accounts.length);
           

@@ -31,6 +31,7 @@ import {
 } from '@mui/material';
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
+import { useDebounce, useRequestDeduplication } from '../../hooks/useDebounce';
 import type { ChatMessage } from '../../services/aiSearchService';
 import { AISearchService } from '../../services/aiSearchService';
 import { WebSearchService } from '../../services/webSearchService';
@@ -45,7 +46,10 @@ const SearchSection: React.FC = () => {
   const { query, results, aiAnswer, isLoading, isGeneratingAnswer, error, searchHistory } = useAppSelector((state) => state.search);
   const { user, isAuthenticated } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
-  const [searchTimeout, setSearchTimeout] = React.useState<NodeJS.Timeout | null>(null);
+
+  // Debouncing and request deduplication
+  const debouncedQuery = useDebounce(query, 1500); // 1.5 second debounce for search
+  const { executeRequest, isRequestPending } = useRequestDeduplication();
   const [isTyping, setIsTyping] = React.useState(false);
   const [aiMode, setAiMode] = React.useState<'search' | 'chat'>('search');
   const [chatMessages, setChatMessages] = React.useState<ChatMessage[]>([]);
@@ -102,33 +106,29 @@ const SearchSection: React.FC = () => {
     performSearchRef.current = performSearch;
   });
 
+  // Debounced search effect - triggers search when user stops typing
+  React.useEffect(() => {
+    if (aiMode === 'search' && debouncedQuery && debouncedQuery.trim().length >= 3 && !isRequestPending(debouncedQuery.trim())) {
+      setIsTyping(false);
+      performSearch(debouncedQuery.trim());
+    }
+  }, [debouncedQuery, aiMode]);
+
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newQuery = event.target.value;
     dispatch(setQuery(newQuery));
 
     // Only perform real-time search in search mode, not in chat mode
     if (aiMode === 'search') {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-
       const trimmedQuery = newQuery.trim();
-      
+
       // Clear results and AI answer immediately when typing
       dispatch(setResults([]));
       dispatch(setAIAnswer(null));
 
-      // Only search if query is at least 3 characters long
+      // Set typing state for queries longer than 2 characters
       if (trimmedQuery.length >= 3) {
         setIsTyping(true);
-        const timeout = setTimeout(() => {
-          // Only perform search if we're not already searching
-          if (!isSearching) {
-            setIsTyping(false);
-            performSearch(trimmedQuery);
-          }
-        }, 4000); // Much longer timeout for children who type slowly
-        setSearchTimeout(timeout);
       } else {
         setIsTyping(false);
       }
@@ -144,71 +144,70 @@ const SearchSection: React.FC = () => {
     if (event.key === 'Enter' && query.trim()) {
       event.preventDefault();
 
-      // Safety switch: Cancel any pending timeout searches to prevent duplicates
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-        setSearchTimeout(null);
-      }
+      const trimmedQuery = query.trim();
 
-      // Prevent duplicate submissions if already searching
-      if (isSearching || isLoading || isChatLoading) {
-        console.log('🚫 Ignoring Enter key - search already in progress');
+      // Check if request is already pending
+      if (isRequestPending(trimmedQuery) || isLoading || isChatLoading) {
+        console.log('🚫 Ignoring Enter key - request already in progress');
         return;
       }
 
       if (aiMode === 'chat' && user?.role === 'staff') {
-        handleChatMessage(query.trim());
+        handleChatMessage(trimmedQuery);
       } else {
-        performSearch(query.trim());
-        // Don't clear query for search mode as user might want to modify it
+        performSearch(trimmedQuery);
       }
     }
   };
 
   const performSearch = async (searchQuery: string) => {
-    // Prevent duplicate searches while one is already in progress
-    if (isSearching) {
-      console.log('🚫 Search already in progress, ignoring duplicate request');
+    const requestKey = `search:${searchQuery}`;
+
+    // Use request deduplication to prevent duplicate searches
+    const result = await executeRequest(requestKey, async () => {
+      // Clear typing state immediately when search starts
+      setIsTyping(false);
+      setIsSearching(true);
+      dispatch(setLoading(true));
+      dispatch(addToHistory(searchQuery));
+      setChatResponse('');
+
+      try {
+        const userRole = isAuthenticated && user ? user.role : 'guest';
+        const results = await AISearchService.performSearch(searchQuery, userRole);
+        dispatch(setResults(results));
+
+        return results;
+      } catch (error) {
+        console.error('❌ Search error:', error);
+        dispatch(setError('Search failed. Please try again.'));
+        throw error;
+      } finally {
+        dispatch(setLoading(false));
+        setIsSearching(false);
+      }
+    });
+
+    if (result === null) {
+      // Request was deduplicated, search is already running
       return;
     }
 
-    // Clear typing state immediately when search starts
-    setIsTyping(false);
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-      setSearchTimeout(null);
-    }
-
-    setIsSearching(true);
-    dispatch(setLoading(true));
-    dispatch(addToHistory(searchQuery));
-    setChatResponse('');
-
-    try {
-      const userRole = isAuthenticated && user ? user.role : 'guest';
-      const results = await AISearchService.performSearch(searchQuery, userRole);
-      dispatch(setResults(results));
-
-      // Generate AI instant answer after getting results
-      if (results.length > 0) {
-        dispatch(setGeneratingAnswer(true));
-        try {
-          const aiAnswer = await WebSearchService.generateInstantAnswer(searchQuery, results, userRole);
-          if (aiAnswer) {
-            dispatch(setAIAnswer(aiAnswer));
-          }
-        } catch (aiErr) {
-          console.warn('AI instant answer generation failed:', aiErr);
-          // Don't show error to user, just skip the AI answer
-        } finally {
-          dispatch(setGeneratingAnswer(false));
+    // Generate AI instant answer after getting results
+    if (result && result.length > 0) {
+      dispatch(setGeneratingAnswer(true));
+      try {
+        const userRole = isAuthenticated && user ? user.role : 'guest';
+        const aiAnswer = await WebSearchService.generateInstantAnswer(searchQuery, result, userRole);
+        if (aiAnswer) {
+          dispatch(setAIAnswer(aiAnswer));
         }
+      } catch (aiErr) {
+        console.warn('⚠️ AI instant answer generation failed:', aiErr);
+        // Don't show error to user, just skip the AI answer
+      } finally {
+        dispatch(setGeneratingAnswer(false));
       }
-    } catch (err) {
-      dispatch(setError('Search failed. Please try again.'));
-    } finally {
-      dispatch(setLoading(false));
-      setIsSearching(false);
     }
   };
 

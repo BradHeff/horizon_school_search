@@ -29,56 +29,65 @@ const fallbackConfig: Configuration = {
 export let msalConfig: Configuration = fallbackConfig;
 
 export let loginRequest = {
-  scopes: ['User.Read', 'User.Read.All'],
+  scopes: ['User.Read'],
 };
 
-// Don't create instance immediately, wait for proper initialization
-export let msalInstance: PublicClientApplication;
+// Singleton instance management
+let msalInstance: PublicClientApplication | null = null;
+let isInitialized = false;
+let initializationPromise: Promise<PublicClientApplication> | null = null;
 
-// Track initialization to prevent duplicate instances
-let isInitializing = false;
-let initializationPromise: Promise<void> | null = null;
+// Get or initialize MSAL instance (singleton pattern)
+export const getMsalInstance = async (): Promise<PublicClientApplication> => {
+  // If already initialized, return existing instance
+  if (isInitialized && msalInstance) {
+    return msalInstance;
+  }
 
-// Initialize MSAL with runtime config
-export const initializeMSAL = async (): Promise<void> => {
-  // If already initializing, return the existing promise
-  if (isInitializing && initializationPromise) {
+  // If currently initializing, wait for completion
+  if (initializationPromise) {
     return initializationPromise;
   }
 
-  // If already initialized, return immediately
-  if (msalInstance) {
-    return Promise.resolve();
-  }
-
-  isInitializing = true;
+  // Start initialization
   initializationPromise = initializeMSALInternal();
-  
-  try {
-    await initializationPromise;
-  } finally {
-    isInitializing = false;
-    initializationPromise = null;
-  }
+  const instance = await initializationPromise;
+
+  // Mark as complete
+  isInitialized = true;
+  initializationPromise = null;
+
+  return instance;
 };
 
-const initializeMSALInternal = async (): Promise<void> => {
+// Legacy wrapper for backwards compatibility
+export const initializeMSAL = async (): Promise<void> => {
+  await getMsalInstance();
+};
+
+const initializeMSALInternal = async (): Promise<PublicClientApplication> => {
   try {
     // Check if there's already an MSAL instance in the global window
     if ((window as any).msal_instance) {
-      console.warn('MSAL instance already exists globally, reusing it');
+      console.log('♻️ Reusing existing MSAL instance');
       msalInstance = (window as any).msal_instance;
-      return;
+      return msalInstance!; // Non-null assertion since we just verified it exists
     }
 
     const config = await getConfig();
+
+    // Validate required configuration values
+    if (!config.azureAd.clientId || !config.azureAd.authority) {
+      console.error('❌ Missing required Azure AD configuration, using fallback config');
+      throw new Error('Missing Azure AD configuration');
+    }
 
     msalConfig = {
       auth: {
         clientId: config.azureAd.clientId,
         authority: config.azureAd.authority,
-        redirectUri: config.azureAd.redirectUri,
-        postLogoutRedirectUri: config.azureAd.redirectUri,
+        redirectUri: config.azureAd.redirectUri || window.location.origin,
+        postLogoutRedirectUri: config.azureAd.redirectUri || window.location.origin,
         navigateToLoginRequestUrl: true,
       },
       cache: {
@@ -101,19 +110,32 @@ const initializeMSALInternal = async (): Promise<void> => {
       scopes: config.azureAd.scopes,
     };
 
+    console.log('🔑 Creating new MSAL instance with config');
     // Create single instance with proper config
     msalInstance = new PublicClientApplication(msalConfig);
     await msalInstance.initialize();
-    
+
     // Store globally to prevent duplicate instances
     (window as any).msal_instance = msalInstance;
+
+    return msalInstance;
   } catch (error) {
-    console.error('Failed to initialize MSAL:', error);
+    console.error('❌ Failed to initialize MSAL with runtime config, using fallback:', error);
     // Create fallback instance if main config failed
     msalInstance = new PublicClientApplication(fallbackConfig);
     await msalInstance.initialize();
-    
+
     // Store globally to prevent duplicate instances
     (window as any).msal_instance = msalInstance;
+
+    return msalInstance;
   }
 };
+
+// Export the instance getter for direct access
+export const getMsalInstanceSync = (): PublicClientApplication | null => {
+  return msalInstance;
+};
+
+// Legacy export for backwards compatibility
+export { getMsalInstance as msalInstance };

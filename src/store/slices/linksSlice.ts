@@ -16,77 +16,125 @@ interface LinksState {
 }
 
 const defaultLinks: QuickLink[] = [
+  // Student & Guest Links
   {
-    id: '1',
-    title: 'PowerSchool',
-    url: 'https://powerschool.example.com',
-    icon: 'School',
-    category: 'Academic',
-    roles: ['student', 'staff', 'admin'],
-    description: 'Student information system'
-  },
-  {
-    id: '2',
-    title: 'Canvas LMS',
-    url: 'https://canvas.example.com',
+    id: 'canvas',
+    title: 'Canvas',
+    url: 'https://canvas.horizon.sa.edu.au',
     icon: 'LibraryBooks',
     category: 'Learning',
-    roles: ['student', 'staff', 'admin'],
+    roles: ['student', 'guest'],
     description: 'Learning management system'
   },
   {
-    id: '3',
-    title: 'Office 365',
-    url: 'https://office365.example.com',
+    id: 'outlook-student',
+    title: 'Outlook',
+    url: 'https://outlook.office365.com',
     icon: 'Work',
-    category: 'Productivity',
-    roles: ['student', 'staff', 'admin'],
-    description: 'Microsoft Office suite'
+    category: 'Communication',
+    roles: ['student', 'guest'],
+    description: 'Microsoft Outlook email'
   },
   {
-    id: '4',
-    title: 'Library Catalog',
-    url: 'https://library.example.com',
-    icon: 'LocalLibrary',
-    category: 'Resources',
-    roles: ['student', 'staff', 'admin', 'guest'],
-    description: 'Search library resources'
-  },
-  {
-    id: '5',
-    title: 'Staff Portal',
-    url: 'https://staff.example.com',
-    icon: 'SupervisorAccount',
-    category: 'Staff',
-    roles: ['staff', 'admin'],
-    description: 'Staff resources and tools'
-  },
-  {
-    id: '6',
-    title: 'Gradebook',
-    url: 'https://gradebook.example.com',
-    icon: 'Assignment',
+    id: 'open-access',
+    title: 'Open Access Student Links',
+    url: 'https://www.openaccess.edu.au/students/student-links',
+    icon: 'School',
     category: 'Academic',
-    roles: ['staff', 'admin'],
-    description: 'Grade management system'
+    roles: ['student', 'guest'],
+    description: 'Open Access College student resources'
   },
   {
-    id: '7',
-    title: 'Student Portal',
-    url: 'https://student.example.com',
+    id: 'pat-testing',
+    title: 'PAT Testing',
+    url: 'https://oars.acer.edu.au/8496',
+    icon: 'Assignment',
+    category: 'Assessment',
+    roles: ['student', 'guest'],
+    description: 'Progressive Achievement Testing'
+  },
+
+  // Staff Links
+  {
+    id: 'canvas-staff',
+    title: 'Canvas',
+    url: 'https://canvas.horizon.sa.edu.au',
+    icon: 'LibraryBooks',
+    category: 'Learning',
+    roles: ['staff'],
+    description: 'Learning management system'
+  },
+  {
+    id: 'edupage',
+    title: 'Edupage',
+    url: 'https://horizoncs.edupage.org/',
+    icon: 'School',
+    category: 'Administration',
+    roles: ['staff'],
+    description: 'School management system'
+  },
+  {
+    id: 'tass-admin',
+    title: 'TASS Admin',
+    url: 'https://horizon.sa.tass.cloud/tassweb/index.cfm',
+    icon: 'SupervisorAccount',
+    category: 'Administration',
+    roles: ['staff'],
+    description: 'Student management system'
+  },
+  {
+    id: 'tass-kiosk',
+    title: 'TASS Kiosk',
+    url: 'https://horizon.sa.tass.cloud/kiosk',
     icon: 'Person',
-    category: 'Student',
-    roles: ['student'],
-    description: 'Student resources and information'
+    category: 'Administration',
+    roles: ['staff'],
+    description: 'TASS kiosk interface'
   },
   {
-    id: '8',
-    title: 'Calendar',
-    url: 'https://calendar.example.com',
+    id: 'naplan-admin',
+    title: 'Naplan Admin',
+    url: 'https://administration.assessform.edu.au/auth/login',
+    icon: 'Assignment',
+    category: 'Assessment',
+    roles: ['staff'],
+    description: 'NAPLAN administration portal'
+  },
+  {
+    id: 'google-calendar',
+    title: 'Google Calendar',
+    url: 'https://calendar.google.com/',
     icon: 'Event',
-    category: 'General',
-    roles: ['student', 'staff', 'admin', 'guest'],
-    description: 'School calendar and events'
+    category: 'Productivity',
+    roles: ['staff'],
+    description: 'Google Calendar'
+  },
+  {
+    id: 'outlook-staff',
+    title: 'Outlook',
+    url: 'https://outlook.office365.com',
+    icon: 'Work',
+    category: 'Communication',
+    roles: ['staff'],
+    description: 'Microsoft Outlook email'
+  },
+  {
+    id: 'daybook',
+    title: 'Daybook',
+    url: 'https://docs.google.com/document/d/1Sgu-3RMNhVYSMuxpoOIR6PlLJXGbs1gcAgxFSVVkgh8/edit',
+    icon: 'LibraryBooks',
+    category: 'Resources',
+    roles: ['staff'],
+    description: 'Daily planning document'
+  },
+  {
+    id: 'classwize',
+    title: 'Classwize Login',
+    url: 'https://classroom.au-1.familyzone.io/login',
+    icon: 'SupervisorAccount',
+    category: 'Classroom Management',
+    roles: ['staff'],
+    description: 'Classroom management tool'
   }
 ];
 
