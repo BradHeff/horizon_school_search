@@ -1,23 +1,23 @@
-import React from 'react';
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  IconButton,
-  Avatar,
-  Box,
-  Menu,
-  MenuItem,
-} from '@mui/material';
 import {
   Login as LoginIcon,
   Logout as LogoutIcon,
   Support as SupportIcon,
 } from '@mui/icons-material';
-import { useAppSelector, useAppDispatch } from '../../hooks/redux';
-import { clearUser, setLoading } from '../../store/slices/authSlice';
+import {
+  AppBar,
+  Avatar,
+  Box,
+  Button,
+  IconButton,
+  Menu,
+  MenuItem,
+  Toolbar,
+  Typography,
+} from '@mui/material';
+import React from 'react';
+import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { AuthService } from '../../services/authService';
+import { clearUser, setLoading } from '../../store/slices/authSlice';
 
 interface HeaderProps {
   onLogin: () => void;
@@ -96,7 +96,7 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
                 opacity: 0.8
               }}
             >
-              Excellence in Education
+              A Transforming Christian Education for All
             </Typography>
           </Box>
         </Box>
