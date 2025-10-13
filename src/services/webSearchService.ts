@@ -91,7 +91,7 @@ Simple answer (1-2 sentences):`;
           role: 'user',
           content: prompt
         }
-      ], userRole === 'staff' ? 400 : 300); // Reduced token limits for faster responses
+      ], userRole === 'staff' ? 2000 : 1500); // Increased for o1/o3 models with reasoning tokens
 
       console.log('🤖 Raw AI response:', aiResponse);
       console.log('🤖 AI response length:', aiResponse?.length || 0);
