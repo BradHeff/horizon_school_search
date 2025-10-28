@@ -2,6 +2,9 @@ import {
   Login as LoginIcon,
   Logout as LogoutIcon,
   Support as SupportIcon,
+  Analytics as AnalyticsIcon,
+  Shield as ShieldIcon,
+  Home as HomeIcon,
 } from '@mui/icons-material';
 import {
   AppBar,
@@ -15,6 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { AuthService } from '../../services/authService';
 import { clearUser, setLoading } from '../../store/slices/authSlice';
@@ -27,6 +31,8 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
   const { user, isAuthenticated } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
   const handleProfileClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -48,6 +54,9 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
     dispatch(setLoading(false));
     handleClose();
   };
+
+  const isStaff = user?.role === 'staff';
+  const currentPage = location.pathname;
 
   return (
     <AppBar
@@ -102,6 +111,75 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* Staff Navigation */}
+          {isStaff && (
+            <>
+              <Button
+                color="inherit"
+                startIcon={<HomeIcon />}
+                onClick={() => navigate('/')}
+                sx={{
+                  color: 'white',
+                  borderRadius: '12px',
+                  padding: '8px 16px',
+                  textTransform: 'none',
+                  fontWeight: currentPage === '/' ? 'bold' : 'normal',
+                  background: currentPage === '/' ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  '&:hover': {
+                    background: 'rgba(255,255,255,0.15)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  },
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                Search
+              </Button>
+              <Button
+                color="inherit"
+                startIcon={<AnalyticsIcon />}
+                onClick={() => navigate('/analytics')}
+                sx={{
+                  color: 'white',
+                  borderRadius: '12px',
+                  padding: '8px 16px',
+                  textTransform: 'none',
+                  fontWeight: currentPage === '/analytics' ? 'bold' : 'normal',
+                  background: currentPage === '/analytics' ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  '&:hover': {
+                    background: 'rgba(255,255,255,0.15)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  },
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                Analytics
+              </Button>
+              <Button
+                color="inherit"
+                startIcon={<ShieldIcon />}
+                onClick={() => navigate('/moderation')}
+                sx={{
+                  color: 'white',
+                  borderRadius: '12px',
+                  padding: '8px 16px',
+                  textTransform: 'none',
+                  fontWeight: currentPage === '/moderation' ? 'bold' : 'normal',
+                  background: currentPage === '/moderation' ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  '&:hover': {
+                    background: 'rgba(255,255,255,0.15)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  },
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                Moderation
+              </Button>
+            </>
+          )}
+
           <Button
             color="inherit"
             startIcon={<SupportIcon />}

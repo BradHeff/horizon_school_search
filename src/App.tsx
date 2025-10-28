@@ -3,11 +3,13 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import React from 'react';
 import { Provider } from 'react-redux';
-import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
+import { Route, BrowserRouter as Router, Routes, Navigate } from 'react-router-dom';
 import RedirectHandler from './components/Auth/RedirectHandler';
 import MainLayout from './components/Layout/MainLayout';
+import AnalyticsDashboard from './components/Analytics/AnalyticsDashboard';
+import ModerationPanel from './components/Moderation/ModerationPanel';
 import { initializeMSAL, getMsalInstance } from './config/msalConfig';
-import { useAppDispatch } from './hooks/redux';
+import { useAppDispatch, useAppSelector } from './hooks/redux';
 import { AuthService } from './services/authService';
 import { store } from './store';
 import { setRememberMe, setUser } from './store/slices/authSlice';
@@ -33,6 +35,21 @@ const theme = createTheme({
     ].join(','),
   },
 });
+
+// Staff-only route wrapper
+const StaffRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { user } = useAppSelector((state) => state.auth);
+
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (user.role !== 'staff') {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
 
 const AppContent: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -64,14 +81,14 @@ const AppContent: React.FC = () => {
           // First check if we have a user from redirect in localStorage
           const redirectUser = localStorage.getItem('horizon_auth_user');
           const redirectRemember = localStorage.getItem('horizon_auth_remember');
-          
+
           if (redirectUser && redirectRemember) {
             try {
               const user = JSON.parse(redirectUser);
               console.log('✅ Found redirect user in localStorage:', user.name);
               dispatch(setUser(user));
               dispatch(setRememberMe(true));
-              
+
               // Clear the temporary storage
               localStorage.removeItem('horizon_auth_user');
               localStorage.removeItem('horizon_auth_remember');
@@ -82,7 +99,7 @@ const AppContent: React.FC = () => {
               localStorage.removeItem('horizon_auth_remember');
             }
           }
-          
+
           // Check for auto-login (backend or cookie-based)
           const autoLoginUser = await AuthService.checkAutoLogin();
           if (autoLoginUser) {
@@ -110,6 +127,22 @@ const AppContent: React.FC = () => {
       <Routes>
         <Route path="/redirect" element={<RedirectHandler />} />
         <Route path="/" element={<MainLayout />} />
+        <Route
+          path="/analytics"
+          element={
+            <StaffRoute>
+              <MainLayout page="analytics" />
+            </StaffRoute>
+          }
+        />
+        <Route
+          path="/moderation"
+          element={
+            <StaffRoute>
+              <MainLayout page="moderation" />
+            </StaffRoute>
+          }
+        />
         <Route path="*" element={<MainLayout />} />
       </Routes>
     </Router>

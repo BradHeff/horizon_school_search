@@ -194,12 +194,14 @@ const SearchSection: React.FC = () => {
     }
 
     // Generate AI instant answer after getting results
+    let generatedAnswer: any = null;
     if (result && result.length > 0) {
       dispatch(setGeneratingAnswer(true));
       try {
         const userRole = isAuthenticated && user ? user.role : 'guest';
         const aiAnswer = await WebSearchService.generateInstantAnswer(searchQuery, result, userRole);
         if (aiAnswer) {
+          generatedAnswer = aiAnswer;
           dispatch(setAIAnswer(aiAnswer));
         }
       } catch (aiErr) {
@@ -207,6 +209,42 @@ const SearchSection: React.FC = () => {
         // Don't show error to user, just skip the AI answer
       } finally {
         dispatch(setGeneratingAnswer(false));
+      }
+    }
+
+    // NEW: Rate content and check triggers (staff can see this in analytics)
+    if (isAuthenticated && result && result.length > 0) {
+      try {
+        const backendService = (await import('../../services/backendService')).default;
+
+        // Rate the content
+        const rating = await backendService.rateContent(
+          searchQuery,
+          result,
+          generatedAnswer || undefined
+        );
+
+        if (rating) {
+          console.log('📊 Content rated:', {
+            score: rating.score,
+            trigger: rating.trigger,
+            reasons: rating.reasons.length
+          });
+
+          // Log warning for inappropriate content
+          if (rating.trigger === 'bad') {
+            console.warn('⚠️ Content flagged as inappropriate:', rating.reasons);
+          } else if (rating.trigger === 'questionable') {
+            console.warn('⚠️ Content flagged as questionable:', rating.reasons);
+          }
+
+          // Note: We don't block content here, just log it
+          // Staff can review flagged searches in the Analytics dashboard
+          // This allows educational oversight without disrupting student searches
+        }
+      } catch (ratingError) {
+        console.error('Failed to rate content:', ratingError);
+        // Don't fail the search if rating fails
       }
     }
   };

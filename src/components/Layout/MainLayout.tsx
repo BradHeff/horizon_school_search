@@ -7,13 +7,21 @@ import {
   useTheme
 } from '@mui/material';
 import React from 'react';
+import { useAppSelector } from '../../hooks/redux';
+import AnalyticsDashboard from '../Analytics/AnalyticsDashboard';
 import LoginDialog from '../Auth/LoginDialog';
+import ModerationPanel from '../Moderation/ModerationPanel';
 import SearchSection from '../Search/SearchSection';
 import SupportDialog from '../Support/SupportDialog';
 import Header from './Header';
 import SidePanel from './SidePanel';
 
-const MainLayout: React.FC = () => {
+interface MainLayoutProps {
+  page?: 'search' | 'analytics' | 'moderation';
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ page = 'search' }) => {
+  const { user } = useAppSelector((state) => state.auth);
   const [loginOpen, setLoginOpen] = React.useState(false);
   const [supportOpen, setSupportOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
@@ -123,15 +131,18 @@ const MainLayout: React.FC = () => {
             </Box>
           </Box>
 
-          {/* Search Section - Flexible width */}
+          {/* Main Content - Flexible width */}
           <Box
             sx={{
               flexGrow: 1,
               height: '100%',
               minWidth: 0,
+              overflow: 'auto',
             }}
           >
-            <SearchSection />
+            {page === 'search' && <SearchSection />}
+            {page === 'analytics' && <AnalyticsDashboard userRole={user?.role || 'guest'} />}
+            {page === 'moderation' && <ModerationPanel userRole={user?.role || 'guest'} />}
           </Box>
         </Box>
       </Box>

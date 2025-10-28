@@ -64,6 +64,136 @@ export interface SearchHistoryItem {
   responseTime?: number;
   isBookmarked?: boolean;
   isFavorite?: boolean;
+  // NEW: Trigger/Moderation fields
+  contentRating?: number;
+  trigger?: 'bad' | 'questionable' | 'safe' | null;
+  triggerReason?: string;
+  isModerated?: boolean;
+  moderationAction?: 'approved' | 'blocked' | 'flagged' | null;
+}
+
+// NEW: Bookmark interface
+export interface Bookmark {
+  bookmarkId: string;
+  userId: string;
+  title: string;
+  query: string;
+  category: string;
+  searchType: 'ai' | 'web' | 'hybrid';
+  resultSnapshot?: {
+    aiAnswer?: string;
+    topResults?: Array<{
+      title: string;
+      url: string;
+      snippet: string;
+    }>;
+  };
+  tags: string[];
+  notes?: string;
+  folder: string;
+  isFavorite: boolean;
+  createdAt: string;
+  lastAccessedAt: string;
+  accessCount: number;
+}
+
+// NEW: Moderation Rule interface
+export interface ModerationRule {
+  _id?: string;
+  ruleType: 'domain' | 'keyword' | 'url' | 'pattern';
+  action: 'allow' | 'block' | 'flag';
+  value: string;
+  pattern?: string;
+  caseSensitive?: boolean;
+  reason?: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  isActive: boolean;
+  hitCount?: number;
+  lastHitAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// NEW: Content Rating interface
+export interface ContentRating {
+  score: number;
+  trigger: 'bad' | 'questionable' | 'safe';
+  reasons: Array<{
+    source: string;
+    reason: string;
+    severity: string;
+  }>;
+  details: {
+    queryScore: number;
+    resultsScore: number;
+    aiAnswerScore: number;
+  };
+}
+
+// NEW: Analytics interfaces
+export interface AnalyticsOverview {
+  overview: {
+    totalSearches: number;
+    activeUsers: number;
+    aiAnswerRate: string;
+  };
+  searchesByType: {
+    web?: number;
+    ai?: number;
+    hybrid?: number;
+  };
+  searchesByCategory: Array<{
+    category: string;
+    count: number;
+  }>;
+  topQueries: Array<{
+    query: string;
+    count: number;
+    avgResults: number;
+  }>;
+  dailyTrends: Array<{
+    date: string;
+    count: number;
+  }>;
+}
+
+export interface UserStats {
+  searchStats: {
+    totalSearches: number;
+    recentSearches: number;
+    averagePerDay: string;
+  };
+  topCategories: Array<{
+    category: string;
+    count: number;
+  }>;
+  weeklyTrends: Array<{
+    date: string;
+    count: number;
+  }>;
+  chatStats?: {
+    totalSessions: number;
+    totalMessages: number;
+  };
+}
+
+export interface ModerationStats {
+  triggers: {
+    bad?: number;
+    questionable?: number;
+    safe?: number;
+    none?: number;
+  };
+  moderation: {
+    moderated: number;
+    unmoderated: number;
+    needsAttention: number;
+  };
+  rules: Array<{
+    type: string;
+    action: string;
+    count: number;
+  }>;
 }
 
 class BackendService {
@@ -132,9 +262,9 @@ class BackendService {
   ): Promise<T> {
     // Ensure backend URL is initialized
     await this.initializeBaseUrl();
-    
+
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -153,25 +283,37 @@ class BackendService {
       // Handle token expiration
       if (response.status === 401 && requireAuth) {
         const errorData = await response.json().catch(() => ({}));
-        
-        if (errorData.code === 'TOKEN_EXPIRED' && this.refreshToken) {
+
+        // Try to refresh the token
+        if (errorData.code === 'TOKEN_EXPIRED' || errorData.message?.includes('expired') || errorData.message?.includes('invalid')) {
           console.log('🔄 Access token expired, attempting refresh...');
-          const refreshed = await this.refreshAccessToken();
-          
+
+          // First try using refresh token
+          let refreshed = false;
+          if (this.refreshToken) {
+            refreshed = await this.refreshAccessToken();
+          }
+
+          // If no refresh token or refresh failed, try re-authenticating with MSAL
+          if (!refreshed) {
+            console.log('🔄 No refresh token or refresh failed, attempting MSAL re-authentication...');
+            refreshed = await this.refreshWithMSAL();
+          }
+
           if (refreshed) {
             // Retry the original request with new token
             (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
             const retryResponse = await fetch(url, { ...options, headers });
-            
+
             if (!retryResponse.ok) {
               throw new Error(`Request failed: ${retryResponse.status}`);
             }
-            
+
             return await retryResponse.json();
           }
         }
-        
-        // If refresh failed or no refresh token, clear auth and throw error
+
+        // If refresh failed, clear auth and throw error
         this.clearTokensFromStorage();
         throw new Error('Authentication expired. Please login again.');
       }
@@ -197,19 +339,39 @@ class BackendService {
     licenses: string[];
     rememberMe: boolean;
   }): Promise<LoginResponse> {
-    console.log('🔐 Logging in to backend...', { email: userData.email, rememberMe: userData.rememberMe });
-    
-    const response = await this.makeRequest<LoginResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    }, false);
+    console.log('🔐 Logging in to backend...', {
+      email: userData.email,
+      rememberMe: userData.rememberMe,
+      backendUrl: this.baseUrl
+    });
 
-    if (response.success && response.tokens) {
-      this.saveTokensToStorage(response.tokens.accessToken, response.tokens.refreshToken);
-      console.log('✅ Backend login successful');
+    try {
+      const response = await this.makeRequest<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      }, false);
+
+      if (response.success && response.tokens) {
+        this.saveTokensToStorage(response.tokens.accessToken, response.tokens.refreshToken);
+        console.log('✅ Backend login successful', {
+          hasAccessToken: !!response.tokens.accessToken,
+          hasRefreshToken: !!response.tokens.refreshToken
+        });
+      } else {
+        console.warn('⚠️ Backend login returned unsuccessful response:', {
+          success: response.success,
+          hasTokens: !!(response as any).tokens
+        });
+      }
+
+      return response;
+    } catch (error) {
+      console.error('❌ Backend login request failed:', error);
+      console.error('❌ Backend URL:', this.baseUrl);
+      console.error('❌ Error type:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('❌ Error message:', error instanceof Error ? error.message : String(error));
+      throw error;
     }
-
-    return response;
   }
 
   async refreshAccessToken(): Promise<boolean> {
@@ -219,7 +381,7 @@ class BackendService {
 
     try {
       console.log('🔄 Refreshing access token...');
-      
+
       const response = await this.makeRequest<{
         success: boolean;
         accessToken: string;
@@ -237,6 +399,46 @@ class BackendService {
     } catch (error) {
       console.error('❌ Token refresh failed:', error);
       this.clearTokensFromStorage();
+    }
+
+    return false;
+  }
+
+  async refreshWithMSAL(): Promise<boolean> {
+    try {
+      // Import AuthService dynamically to avoid circular dependencies
+      const { AuthService } = await import('./authService');
+
+      // Get the current MSAL account and fresh token
+      const currentUser = await AuthService.getCurrentUser();
+
+      if (!currentUser) {
+        console.warn('⚠️ No MSAL user found, cannot refresh backend token');
+        return false;
+      }
+
+      console.log('🔄 Re-authenticating backend with MSAL user...');
+
+      // Re-login to backend with MSAL credentials (without rememberMe to avoid loops)
+      const response = await this.makeRequest<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          azureId: currentUser.id,
+          email: currentUser.email,
+          name: currentUser.name,
+          displayName: currentUser.name,
+          licenses: [], // License check not needed for refresh
+          rememberMe: false
+        }),
+      }, false);
+
+      if (response.success && response.tokens) {
+        this.saveTokensToStorage(response.tokens.accessToken, response.tokens.refreshToken);
+        console.log('✅ Backend token refreshed successfully via MSAL');
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ MSAL-based token refresh failed:', error);
     }
 
     return false;
@@ -484,6 +686,359 @@ class BackendService {
     } catch (error) {
       console.error('Backend health check failed:', error);
       return false;
+    }
+  }
+
+  // ============= NEW: Bookmarks Methods =============
+
+  async getBookmarks(filters?: {
+    category?: string;
+    folder?: string;
+    favorite?: boolean;
+    limit?: number;
+    skip?: number;
+  }): Promise<{ bookmarks: Bookmark[]; total: number }> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.category) params.append('category', filters.category);
+      if (filters?.folder) params.append('folder', filters.folder);
+      if (filters?.favorite !== undefined) params.append('favorite', String(filters.favorite));
+      if (filters?.limit) params.append('limit', String(filters.limit));
+      if (filters?.skip) params.append('skip', String(filters.skip));
+
+      const response = await this.makeRequest<{ bookmarks: Bookmark[]; total: number }>(
+        `/bookmarks?${params.toString()}`
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to get bookmarks:', error);
+      return { bookmarks: [], total: 0 };
+    }
+  }
+
+  async createBookmark(data: {
+    title: string;
+    query: string;
+    category?: string;
+    searchType?: 'ai' | 'web' | 'hybrid';
+    resultSnapshot?: any;
+    tags?: string[];
+    notes?: string;
+    folder?: string;
+  }): Promise<Bookmark | null> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; bookmark: Bookmark }>(
+        '/bookmarks',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      );
+      return response.success ? response.bookmark : null;
+    } catch (error) {
+      console.error('Failed to create bookmark:', error);
+      return null;
+    }
+  }
+
+  async updateBookmark(bookmarkId: string, data: Partial<Bookmark>): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<{ success: boolean }>(
+        `/bookmarks/${bookmarkId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }
+      );
+      return response.success;
+    } catch (error) {
+      console.error('Failed to update bookmark:', error);
+      return false;
+    }
+  }
+
+  async deleteBookmark(bookmarkId: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<{ success: boolean }>(
+        `/bookmarks/${bookmarkId}`,
+        { method: 'DELETE' }
+      );
+      return response.success;
+    } catch (error) {
+      console.error('Failed to delete bookmark:', error);
+      return false;
+    }
+  }
+
+  async bulkDeleteBookmarks(bookmarkIds: string[]): Promise<number> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; deletedCount: number }>(
+        '/bookmarks/bulk-delete',
+        {
+          method: 'POST',
+          body: JSON.stringify({ bookmarkIds }),
+        }
+      );
+      return response.deletedCount || 0;
+    } catch (error) {
+      console.error('Failed to bulk delete bookmarks:', error);
+      return 0;
+    }
+  }
+
+  async getBookmarkFolders(): Promise<string[]> {
+    try {
+      const response = await this.makeRequest<{ folders: string[] }>('/bookmarks/folders');
+      return response.folders;
+    } catch (error) {
+      console.error('Failed to get bookmark folders:', error);
+      return [];
+    }
+  }
+
+  async exportBookmarks(): Promise<Blob | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/bookmarks/export/json`, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      });
+      if (response.ok) {
+        return await response.blob();
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to export bookmarks:', error);
+      return null;
+    }
+  }
+
+  // ============= NEW: Analytics Methods =============
+
+  async getAnalyticsOverview(dateRange?: { startDate?: string; endDate?: string }): Promise<AnalyticsOverview | null> {
+    try {
+      const params = new URLSearchParams();
+      if (dateRange?.startDate) params.append('startDate', dateRange.startDate);
+      if (dateRange?.endDate) params.append('endDate', dateRange.endDate);
+
+      const response = await this.makeRequest<AnalyticsOverview>(
+        `/analytics/overview?${params.toString()}`
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to get analytics overview:', error);
+      return null;
+    }
+  }
+
+  async getUserStats(): Promise<UserStats | null> {
+    try {
+      const response = await this.makeRequest<UserStats>('/analytics/user-stats');
+      return response;
+    } catch (error) {
+      console.error('Failed to get user stats:', error);
+      return null;
+    }
+  }
+
+  async getTopicAnalytics(limit: number = 50): Promise<Array<{ topic: string; count: number }>> {
+    try {
+      const response = await this.makeRequest<{ topics: Array<{ topic: string; count: number }> }>(
+        `/analytics/topics?limit=${limit}`
+      );
+      return response.topics;
+    } catch (error) {
+      console.error('Failed to get topic analytics:', error);
+      return [];
+    }
+  }
+
+  async getPerformanceMetrics(dateRange?: { startDate?: string; endDate?: string }): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (dateRange?.startDate) params.append('startDate', dateRange.startDate);
+      if (dateRange?.endDate) params.append('endDate', dateRange.endDate);
+
+      const response = await this.makeRequest<any>(
+        `/analytics/performance?${params.toString()}`
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to get performance metrics:', error);
+      return null;
+    }
+  }
+
+  async getEngagementMetrics(): Promise<any> {
+    try {
+      const response = await this.makeRequest<any>('/analytics/engagement');
+      return response;
+    } catch (error) {
+      console.error('Failed to get engagement metrics:', error);
+      return null;
+    }
+  }
+
+  // ============= NEW: Moderation Methods =============
+
+  async getModerationRules(filters?: {
+    ruleType?: string;
+    action?: string;
+    isActive?: boolean;
+  }): Promise<ModerationRule[]> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.ruleType) params.append('ruleType', filters.ruleType);
+      if (filters?.action) params.append('action', filters.action);
+      if (filters?.isActive !== undefined) params.append('isActive', String(filters.isActive));
+
+      const response = await this.makeRequest<{ success: boolean; rules: ModerationRule[] }>(
+        `/moderation/rules?${params.toString()}`
+      );
+      return response.rules || [];
+    } catch (error) {
+      console.error('Failed to get moderation rules:', error);
+      return [];
+    }
+  }
+
+  async createModerationRule(rule: Omit<ModerationRule, '_id' | 'createdAt' | 'updatedAt'>): Promise<ModerationRule | null> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; rule: ModerationRule }>(
+        '/moderation/rules',
+        {
+          method: 'POST',
+          body: JSON.stringify(rule),
+        }
+      );
+      return response.success ? response.rule : null;
+    } catch (error) {
+      console.error('Failed to create moderation rule:', error);
+      return null;
+    }
+  }
+
+  async updateModerationRule(ruleId: string, updates: Partial<ModerationRule>): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<{ success: boolean }>(
+        `/moderation/rules/${ruleId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(updates),
+        }
+      );
+      return response.success;
+    } catch (error) {
+      console.error('Failed to update moderation rule:', error);
+      return false;
+    }
+  }
+
+  async deleteModerationRule(ruleId: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<{ success: boolean }>(
+        `/moderation/rules/${ruleId}`,
+        { method: 'DELETE' }
+      );
+      return response.success;
+    } catch (error) {
+      console.error('Failed to delete moderation rule:', error);
+      return false;
+    }
+  }
+
+  async toggleModerationRule(ruleId: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<{ success: boolean }>(
+        `/moderation/rules/${ruleId}/toggle`,
+        { method: 'PATCH' }
+      );
+      return response.success;
+    } catch (error) {
+      console.error('Failed to toggle moderation rule:', error);
+      return false;
+    }
+  }
+
+  async getSearchesByTrigger(trigger?: string, options?: {
+    limit?: number;
+    skip?: number;
+    includeModerated?: boolean;
+  }): Promise<{ searches: SearchHistoryItem[]; total: number }> {
+    try {
+      const params = new URLSearchParams();
+      if (trigger) params.append('trigger', trigger);
+      if (options?.limit) params.append('limit', String(options.limit));
+      if (options?.skip) params.append('skip', String(options.skip));
+      if (options?.includeModerated) params.append('includeModerated', String(options.includeModerated));
+
+      const response = await this.makeRequest<{ success: boolean; searches: SearchHistoryItem[]; total: number }>(
+        `/moderation/searches?${params.toString()}`
+      );
+      return { searches: response.searches || [], total: response.total || 0 };
+    } catch (error) {
+      console.error('Failed to get searches by trigger:', error);
+      return { searches: [], total: 0 };
+    }
+  }
+
+  async moderateSearch(searchId: string, action: 'approved' | 'blocked' | 'flagged', reason?: string): Promise<boolean> {
+    try {
+      const response = await this.makeRequest<{ success: boolean }>(
+        `/moderation/searches/${searchId}/moderate`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ action, reason }),
+        }
+      );
+      return response.success;
+    } catch (error) {
+      console.error('Failed to moderate search:', error);
+      return false;
+    }
+  }
+
+  async getModerationStats(): Promise<ModerationStats | null> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; stats: ModerationStats }>(
+        '/moderation/stats'
+      );
+      return response.stats;
+    } catch (error) {
+      console.error('Failed to get moderation stats:', error);
+      return null;
+    }
+  }
+
+  async rateContent(query: string, results?: any[], aiAnswer?: string): Promise<ContentRating | null> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; rating: ContentRating }>(
+        '/moderation/rate-query',
+        {
+          method: 'POST',
+          body: JSON.stringify({ query, results, aiAnswer }),
+        }
+      );
+      return response.rating;
+    } catch (error) {
+      console.error('Failed to rate content:', error);
+      return null;
+    }
+  }
+
+  async testContent(content: string, contentType?: string): Promise<any> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; result: any }>(
+        '/moderation/test-content',
+        {
+          method: 'POST',
+          body: JSON.stringify({ content, contentType }),
+        }
+      );
+      return response.result;
+    } catch (error) {
+      console.error('Failed to test content:', error);
+      return null;
     }
   }
 }

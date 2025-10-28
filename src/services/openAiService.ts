@@ -126,8 +126,9 @@ class OpenAIService {
     };
 
     // Create a timeout promise to prevent long waits
+    // Increased to 30 seconds for reasoning models (o1/o3/gpt-5-nano) which need more time
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout - AI response taking too long')), 10000); // 10 second timeout for faster UX
+      setTimeout(() => reject(new Error('Request timeout - AI response taking too long')), 30000); // 30 second timeout
     });
 
     const fetchPromise = fetch(this.baseUrl, {

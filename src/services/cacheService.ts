@@ -12,7 +12,7 @@ interface CacheEntry<T> {
 class CacheService {
   private cache = new Map<string, CacheEntry<any>>();
   private maxSize = 100; // Maximum number of cached entries
-  private defaultTTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+  private defaultTTL = 15 * 60 * 1000; // 15 minutes in milliseconds (increased to reduce API usage)
 
   /**
    * Generate cache key from query and user role

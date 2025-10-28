@@ -117,13 +117,8 @@ const CompactBreadcrumbs: React.FC<CompactBreadcrumbsProps> = ({
 
   // Handle item click
   const handleItemClick = (item: BreadcrumbItem) => {
-    if (item.type === 'search' && onSearchClick) {
-      onSearchClick(item.title);
-    } else if (item.type === 'chat' && onChatClick) {
-      onChatClick(item.id, item.title);
-    }
-
-    // Trigger the original onClick handler
+    // Just trigger the onClick handler - it will dispatch the appropriate event
+    // (Removed duplicate onSearchClick/onChatClick calls to prevent duplicate API requests)
     item.onClick();
   };
 

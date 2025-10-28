@@ -90,10 +90,10 @@ export class AuthService {
       // First check if we have a valid refresh token in backend
       if (backendService.hasValidRefreshToken()) {
         const backendUser = await backendService.getCurrentUser();
-        
+
         if (backendUser) {
           console.log('🔄 Auto-login from backend successful');
-          
+
           // Convert backend user to frontend user format
           const user: User = {
             id: backendUser.azureId,
@@ -107,10 +107,50 @@ export class AuthService {
         }
       }
 
+      // Check if we have an MSAL account but no backend token
+      // This happens when initial backend login failed but MSAL succeeded
+      const msalInstance = await getMsalInstance();
+      const accounts = msalInstance.getAllAccounts();
+
+      if (accounts.length > 0 && !backendService.isAuthenticated()) {
+        console.log('🔄 Found MSAL account without backend token, attempting backend login...');
+
+        try {
+          // Get fresh MSAL token
+          const silentRequest = {
+            ...loginRequest,
+            account: accounts[0],
+          };
+          const response = await msalInstance.acquireTokenSilent(silentRequest);
+          const licenses = await this.fetchUserLicenses(response.accessToken);
+          const user = this.mapAccountToUserWithLicenses(accounts[0], licenses);
+
+          // Attempt backend login
+          const backendResponse = await backendService.login({
+            azureId: accounts[0].homeAccountId,
+            email: accounts[0].username,
+            name: accounts[0].name || user.name,
+            displayName: accounts[0].name,
+            licenses,
+            rememberMe: this.shouldRememberUser()
+          });
+
+          if (backendResponse.success && backendResponse.user) {
+            console.log('✅ Backend login successful during auto-login');
+            return user;
+          } else {
+            console.warn('⚠️ Backend login response unsuccessful:', backendResponse);
+          }
+        } catch (backendError) {
+          console.error('❌ Backend login failed during auto-login:', backendError);
+          // Continue with frontend-only user
+        }
+      }
+
       // Fallback to cookie-based remember me
       const rememberedUser = this.getRememberedUser();
       if (rememberedUser) {
-        console.log('🔄 Auto-login from cookie');
+        console.log('🔄 Auto-login from cookie (frontend-only)');
         return rememberedUser;
       }
 
@@ -352,7 +392,7 @@ export class AuthService {
 
         // Store user data in backend
         try {
-          console.log('🔄 Attempting backend login...');
+          console.log('🔄 Attempting backend login during MSAL redirect...');
           const backendResponse = await backendService.login({
             azureId: response.account.homeAccountId,
             email: response.account.username,
@@ -373,10 +413,13 @@ export class AuthService {
               this.setRememberMeCookie(user);
             }
             return user;
+          } else {
+            console.warn('⚠️ Backend login response unsuccessful:', backendResponse);
           }
         } catch (backendError) {
-          console.error('Backend login failed:', backendError);
-          console.log('⚠️ Continuing with frontend-only user');
+          console.error('❌ Backend login failed during MSAL redirect:', backendError);
+          console.error('❌ Error details:', backendError instanceof Error ? backendError.message : String(backendError));
+          console.warn('⚠️ Continuing with frontend-only user (backend features will not work)');
           // Continue with frontend-only user for now
         }
 

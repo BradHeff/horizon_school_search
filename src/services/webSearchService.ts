@@ -2,6 +2,13 @@ import { getConfig } from '../config/app-config';
 import type { SearchResult } from '../store/slices/searchSlice';
 import { openAIService } from './openAiService';
 import { cacheService } from './cacheService';
+import {
+  SearchFallbackManager,
+  LangSearchProvider,
+  BraveSearchProvider,
+  DuckDuckGoProvider,
+  SearXNGProvider
+} from './searchProviders';
 
 export interface LangSearchResult {
   id: string;
@@ -38,6 +45,41 @@ export interface AIInstantAnswer {
 }
 
 export class WebSearchService {
+  private static fallbackManager: SearchFallbackManager | null = null;
+
+  /**
+   * Initialize the multi-provider fallback system
+   */
+  private static async initializeFallbackManager(): Promise<SearchFallbackManager> {
+    if (this.fallbackManager) {
+      return this.fallbackManager;
+    }
+
+    const config = await getConfig();
+    const manager = new SearchFallbackManager();
+
+    // Add LangSearch as primary provider
+    if (config.search.apiKey) {
+      manager.addProvider(new LangSearchProvider(config.search.apiKey));
+    }
+
+    // Add Brave Search as fallback (check for API key in env)
+    const braveApiKey = process.env.REACT_APP_BRAVE_API_KEY;
+    if (braveApiKey) {
+      manager.addProvider(new BraveSearchProvider(braveApiKey));
+    }
+
+    // Add DuckDuckGo HTML scraping (always available, free)
+    manager.addProvider(new DuckDuckGoProvider());
+
+    // Add SearXNG public instances (always available, free)
+    manager.addProvider(new SearXNGProvider());
+
+    console.log('🔄 Initialized search providers:', manager.getProviderNames().join(', '));
+
+    this.fallbackManager = manager;
+    return manager;
+  }
 
   /**
    * Generates an AI instant answer based on search query and web results
@@ -126,8 +168,8 @@ Simple answer (1-2 sentences):`;
         confidence
       };
 
-      // Cache the response for future use (5-minute TTL)
-      cacheService.set(cacheKey, instantAnswer, userRole, 5 * 60 * 1000);
+      // Cache the response for future use (15-minute TTL to reduce API usage)
+      cacheService.set(cacheKey, instantAnswer, userRole, 15 * 60 * 1000);
 
       return instantAnswer;
 
@@ -141,7 +183,7 @@ Simple answer (1-2 sentences):`;
    * Performs a web search using LangSearch and filters results through AI for child safety
    */
   static async searchWeb(query: string, userRole: 'guest' | 'student' | 'staff'): Promise<SearchResult[]> {
-    console.log('🌐 WebSearchService: Starting LangSearch web search for:', { query, userRole });
+    console.log('🌐 WebSearchService: Starting multi-provider web search for:', { query, userRole });
 
     // Check cache for search results first
     const searchCacheKey = `search_results:${query}`;
@@ -151,39 +193,41 @@ Simple answer (1-2 sentences):`;
     }
 
     try {
-      // Step 1: Get raw results from LangSearch
-      const rawResults = await this.fetchLangSearchResults(query);
-      console.log('📡 LangSearch raw results:', rawResults.length, 'items');
+      // Step 1: Get results using fallback manager (tries multiple providers)
+      const manager = await this.initializeFallbackManager();
+      const rawResults = await manager.search(query, 8);
+      console.log('📡 Search results retrieved:', rawResults.length, 'items');
 
       if (rawResults.length === 0) {
-        console.log('⚠️ No results from LangSearch, using educational fallbacks');
+        console.log('⚠️ No results from any provider, using educational fallbacks');
         return this.getEducationalFallbacks(query);
       }
 
-      // Step 2: Apply domain filtering based on user role
-      const resultSummary = rawResults.map((result, index) => ({
+      // Step 2: Convert raw results to intermediate format for filtering
+      const resultsForFiltering = rawResults.map((result, index) => ({
         id: index + 1,
-        title: result.name,
-        description: this.cleanText(result.snippet),
+        title: result.title,
+        description: result.snippet,
         url: result.url,
-        domain: this.extractDomain(result.url)
+        domain: result.domain
       }));
 
-      const filteredResults = this.basicDomainFilter(resultSummary, userRole);
+      // Step 3: Apply domain filtering based on user role
+      const filteredResults = this.basicDomainFilter(resultsForFiltering, userRole);
       console.log('🛡️ Domain filtered results:', filteredResults.length, 'safe results');
 
-      // Step 3: If no results pass the filter, provide educational fallbacks
+      // Step 4: If no results pass the filter, provide educational fallbacks
       if (filteredResults.length === 0) {
         console.log('⚠️ No results passed domain filtering, using educational fallbacks');
         return this.getEducationalFallbacks(query);
       }
 
-      // Cache the successful results (3-minute TTL for search results)
-      cacheService.set(searchCacheKey, filteredResults, userRole, 3 * 60 * 1000);
+      // Cache the successful results (15-minute TTL to reduce API usage)
+      cacheService.set(searchCacheKey, filteredResults, userRole, 15 * 60 * 1000);
 
       return filteredResults;
     } catch (error) {
-      console.error('❌ LangSearch web search failed:', error);
+      console.error('❌ Multi-provider web search failed:', error);
       // Always provide educational fallbacks on any error
       return this.getEducationalFallbacks(query);
     }
