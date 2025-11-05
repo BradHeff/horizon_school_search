@@ -24,6 +24,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   CheckCircle,
@@ -50,18 +52,55 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ userRole }) => 
   const [searches, setSearches] = useState<SearchHistoryItem[]>([]);
   const [stats, setStats] = useState<ModerationStats | null>(null);
   const [filterTrigger, setFilterTrigger] = useState<string>('all');
+  const [tabValue, setTabValue] = useState(0); // 0 = All, 1 = Flagged, 2 = Blocked, 3 = Approved
   const [selectedSearch, setSelectedSearch] = useState<SearchHistoryItem | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [moderating, setModerating] = useState(false);
+  const [authRetries, setAuthRetries] = useState(0);
+  const maxAuthRetries = 5;
 
   const loadData = useCallback(async () => {
+    // Wait for backend authentication before making API calls
+    if (!backendService.isAuthenticated()) {
+      if (authRetries < maxAuthRetries) {
+        console.log(`⏳ Analytics waiting for backend authentication... (attempt ${authRetries + 1}/${maxAuthRetries})`);
+        setAuthRetries(prev => prev + 1);
+        // Retry after a short delay
+        setTimeout(() => {
+          loadData();
+        }, 500);
+        return;
+      } else {
+        console.error('❌ Analytics: Backend authentication timeout after', maxAuthRetries, 'attempts');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Reset retry counter on successful auth
+    setAuthRetries(0);
+
     setLoading(true);
     try {
-      const [searchesData, statsData] = await Promise.all([
-        backendService.getSearchesByTrigger(
+      // Determine what to load based on tab
+      let searchesPromise;
+      if (tabValue === 0) {
+        // All unmoderated searches
+        searchesPromise = backendService.getSearchesByTrigger(
           filterTrigger === 'all' ? undefined : filterTrigger,
           { limit: 100, includeModerated: false }
-        ),
+        );
+      } else {
+        // Moderated searches by action type
+        const actionMap = { 1: 'flagged', 2: 'blocked', 3: 'approved' };
+        searchesPromise = backendService.getModeratedSearches(
+          actionMap[tabValue as keyof typeof actionMap] as 'flagged' | 'blocked' | 'approved',
+          { limit: 100 }
+        );
+      }
+
+      const [searchesData, statsData] = await Promise.all([
+        searchesPromise,
         backendService.getModerationStats(),
       ]);
 
@@ -72,13 +111,13 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ userRole }) => 
     } finally {
       setLoading(false);
     }
-  }, [filterTrigger]);
+  }, [filterTrigger, tabValue, authRetries]);
 
   useEffect(() => {
     if (userRole === 'staff') {
       loadData();
     }
-  }, [filterTrigger, userRole, loadData]);
+  }, [filterTrigger, tabValue, userRole, loadData]);
 
   // Staff-only access
   if (userRole !== 'staff') {
@@ -230,30 +269,54 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ userRole }) => 
         </Grid>
       )}
 
-      {/* Filters */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <FilterList />
-        <TextField
-          select
-          label="Filter by Trigger"
-          value={filterTrigger}
-          onChange={(e) => setFilterTrigger(e.target.value)}
-          sx={{ minWidth: 200 }}
-        >
-          <MenuItem value="all">All Triggers</MenuItem>
-          <MenuItem value="bad">Bad</MenuItem>
-          <MenuItem value="questionable">Questionable</MenuItem>
-          <MenuItem value="safe">Safe</MenuItem>
-        </TextField>
-
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadData}
-        >
-          Refresh
-        </Button>
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>
+          <Tab label="Needs Review" icon={<Warning />} iconPosition="start" />
+          <Tab label="Flagged" icon={<Flag />} iconPosition="start" />
+          <Tab label="Blocked" icon={<Block />} iconPosition="start" />
+          <Tab label="Approved" icon={<CheckCircle />} iconPosition="start" />
+        </Tabs>
       </Box>
+
+      {/* Filters */}
+      {tabValue === 0 && (
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+          <FilterList />
+          <TextField
+            select
+            label="Filter by Trigger"
+            value={filterTrigger}
+            onChange={(e) => setFilterTrigger(e.target.value)}
+            sx={{ minWidth: 200 }}
+          >
+            <MenuItem value="all">All Triggers</MenuItem>
+            <MenuItem value="bad">Bad</MenuItem>
+            <MenuItem value="questionable">Questionable</MenuItem>
+            <MenuItem value="safe">Safe</MenuItem>
+          </TextField>
+
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={loadData}
+          >
+            Refresh
+          </Button>
+        </Box>
+      )}
+
+      {tabValue !== 0 && (
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={loadData}
+          >
+            Refresh
+          </Button>
+        </Box>
+      )}
 
       {/* Searches Table */}
       <TableContainer component={Paper}>

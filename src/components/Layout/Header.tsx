@@ -67,11 +67,11 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
         borderBottom: '1px solid rgba(255,255,255,0.1)',
       }}
     >
-      <Toolbar sx={{ padding: '0 24px', height: '80px', justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Toolbar sx={{ padding: '0 16px', height: '56px', justifyContent: 'space-between', minHeight: '56px !important' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box
             sx={{
-              padding: '8px',
+              padding: '4px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -81,7 +81,7 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
               src="/horizon.png"
               alt="Horizon Christian School"
               style={{
-                height: 64,
+                height: 40,
                 width: 'auto',
                 objectFit: 'contain'
               }}
@@ -89,11 +89,13 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
           </Box>
           <Box>
             <Typography
-              variant="h5"
+              variant="h6"
               component="div"
               sx={{
                 color: 'white',
-                fontWeight: 'bold'
+                fontWeight: 'bold',
+                fontSize: '1.1rem',
+                lineHeight: 1.2,
               }}
             >
               Horizon Christian School
@@ -102,7 +104,8 @@ const Header: React.FC<HeaderProps> = ({ onLogin, onSupport }) => {
               variant="caption"
               sx={{
                 color: 'white',
-                opacity: 0.8
+                opacity: 0.8,
+                fontSize: '0.7rem',
               }}
             >
               A Transforming Christian Education for All

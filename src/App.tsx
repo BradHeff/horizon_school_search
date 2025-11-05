@@ -3,16 +3,16 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import React from 'react';
 import { Provider } from 'react-redux';
-import { Route, BrowserRouter as Router, Routes, Navigate } from 'react-router-dom';
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import RedirectHandler from './components/Auth/RedirectHandler';
 import MainLayout from './components/Layout/MainLayout';
-import AnalyticsDashboard from './components/Analytics/AnalyticsDashboard';
-import ModerationPanel from './components/Moderation/ModerationPanel';
-import { initializeMSAL, getMsalInstance } from './config/msalConfig';
+import { getMsalInstance, initializeMSAL } from './config/msalConfig';
 import { useAppDispatch, useAppSelector } from './hooks/redux';
+import AdminPage from './pages/AdminPage';
 import { AuthService } from './services/authService';
 import { store } from './store';
-import { setRememberMe, setUser } from './store/slices/authSlice';
+import { setLoading, setRememberMe, setUser } from './store/slices/authSlice';
+// Add this button component to your app to test Sentry's error tracking
 
 const theme = createTheme({
   palette: {
@@ -38,7 +38,12 @@ const theme = createTheme({
 
 // Staff-only route wrapper
 const StaffRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user, isLoading } = useAppSelector((state) => state.auth);
+
+  // Wait for authentication to finish loading
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   if (!user) {
     return <Navigate to="/" replace />;
@@ -48,6 +53,43 @@ const StaffRoute: React.FC<{ children: React.ReactElement }> = ({ children }) =>
     return <Navigate to="/" replace />;
   }
 
+  return children;
+};
+
+// Admin-only route wrapper (SG_WF_Staff or SG_WF_IT group members)
+const AdminRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { user, isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+
+  // Wait for authentication to finish loading
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated || !user) {
+    console.log('⚠️ AdminRoute: Not authenticated');
+    return <Navigate to="/" replace />;
+  }
+
+  // Check if user is admin
+  // Allow admin access to:
+  // 1. Users with isAdmin flag (from backend)
+  // 2. Members of SG_WF_Staff or SG_WF_IT groups
+  // 3. All users with 'staff' role (standard staff)
+  const isAdmin =
+    user.isAdmin ||
+    (user.groups &&
+      (user.groups.includes('SG_WF_Staff') || user.groups.includes('SG_WF_IT'))) ||
+    user.role === 'staff';
+
+  if (!isAdmin) {
+    console.log('⚠️ AdminRoute: User is not admin');
+    console.log('User groups:', user.groups);
+    console.log('User role:', user.role);
+    console.log('User isAdmin:', user.isAdmin);
+    return <Navigate to="/" replace />;
+  }
+
+  console.log('✅ AdminRoute: Access granted');
   return children;
 };
 
@@ -116,6 +158,9 @@ const AppContent: React.FC = () => {
         }
       } catch (error) {
         console.error('Failed to initialize authentication:', error);
+      } finally {
+        // Clear loading state
+        dispatch(setLoading(false));
       }
     };
 
@@ -141,6 +186,14 @@ const AppContent: React.FC = () => {
             <StaffRoute>
               <MainLayout page="moderation" />
             </StaffRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPage />
+            </AdminRoute>
           }
         />
         <Route path="*" element={<MainLayout />} />

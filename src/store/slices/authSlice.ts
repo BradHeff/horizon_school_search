@@ -7,6 +7,7 @@ export interface User {
   role: 'guest' | 'student' | 'staff';
   profileImage?: string;
   groups?: string[];
+  isAdmin?: boolean; // True if member of SG_WF_Staff or SG_WF_IT
   settings?: {
     aiMode: 'search' | 'chat';
     chatEnabled: boolean;
@@ -24,7 +25,7 @@ interface AuthState {
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true, // Start as loading to prevent premature redirects during auth initialization
   rememberMe: false,
 };
 

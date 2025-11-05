@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -66,7 +66,30 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ userRole }) => {
     isActive: true,
   });
 
-  const loadRules = async () => {
+  const [authRetries, setAuthRetries] = React.useState(0);
+  const maxAuthRetries = 5;
+
+  const loadRules = useCallback(async () => {
+    // Wait for backend authentication before making API calls
+    if (!backendService.isAuthenticated()) {
+      if (authRetries < maxAuthRetries) {
+        console.log(`⏳ Moderation waiting for backend authentication... (attempt ${authRetries + 1}/${maxAuthRetries})`);
+        setAuthRetries(prev => prev + 1);
+        // Retry after a short delay
+        setTimeout(() => {
+          loadRules();
+        }, 500);
+        return;
+      } else {
+        console.error('❌ Moderation: Backend authentication timeout after', maxAuthRetries, 'attempts');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Reset retry counter on successful auth
+    setAuthRetries(0);
+
     setLoading(true);
     try {
       const data = await backendService.getModerationRules();
@@ -76,13 +99,13 @@ const ModerationPanel: React.FC<ModerationPanelProps> = ({ userRole }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authRetries]);
 
   useEffect(() => {
     if (userRole === 'staff') {
       loadRules();
     }
-  }, [userRole]);
+  }, [userRole, loadRules]);
 
   // Staff-only access
   if (userRole !== 'staff') {

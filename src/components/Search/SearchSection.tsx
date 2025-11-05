@@ -36,8 +36,6 @@ import type { ChatMessage } from '../../services/aiSearchService';
 import { AISearchService } from '../../services/aiSearchService';
 import { WebSearchService } from '../../services/webSearchService';
 import { addToHistory, setAIAnswer, setError, setGeneratingAnswer, setLoading, setQuery, setResults } from '../../store/slices/searchSlice';
-import BreadcrumbErrorBoundary from '../Breadcrumbs/BreadcrumbErrorBoundary';
-import Breadcrumbs from '../Breadcrumbs/Breadcrumbs';
 import CompactBreadcrumbs from '../Breadcrumbs/CompactBreadcrumbs';
 import AIInstantAnswerComponent from './AIInstantAnswer';
 import LoadingSkeleton from './LoadingSkeleton';
@@ -162,6 +160,26 @@ const SearchSection: React.FC = () => {
 
   const performSearch = async (searchQuery: string) => {
     const requestKey = `search:${searchQuery}`;
+
+    // Check content moderation BEFORE performing search
+    if (isAuthenticated) {
+      try {
+        const backendService = (await import('../../services/backendService')).default;
+        const moderationCheck = await backendService.checkContentModeration(searchQuery);
+
+        if (moderationCheck && moderationCheck.blocked) {
+          // Content is blocked - show error and don't perform search
+          const reasons = moderationCheck.matches?.map((m: any) => m.reason).filter(Boolean).join(', ') || 'Inappropriate content detected';
+          dispatch(setError(`Search blocked: ${reasons}. Please modify your search query.`));
+          dispatch(setLoading(false));
+          setIsSearching(false);
+          return;
+        }
+      } catch (moderationError) {
+        console.error('Failed to check content moderation:', moderationError);
+        // Don't fail the search if moderation check fails, just log the error
+      }
+    }
 
     // Use request deduplication to prevent duplicate searches
     const result = await executeRequest(requestKey, async () => {
@@ -338,25 +356,26 @@ const SearchSection: React.FC = () => {
               transform: 'translate(50%, -50%)',
             }}
           />
-          <CardContent sx={{ p: 3, textAlign: 'center', position: 'relative', zIndex: 10 }}>
+          <CardContent sx={{ p: 2, textAlign: 'center', position: 'relative', zIndex: 10 }}>
             <Grow in timeout={1200}>
-              <Box sx={{ mb: 3 }}>
+              <Box sx={{ mb: 1.5 }}>
                 {user?.role === 'staff' && aiMode === 'chat' ? (
-                  <ChatIcon sx={{ fontSize: 40, color: 'white', mb: 1.5 }} />
+                  <ChatIcon sx={{ fontSize: 28, color: 'white', mb: 0.5 }} />
                 ) : (
-                  <MagicIcon sx={{ fontSize: 40, color: 'white', mb: 1.5 }} />
+                  <MagicIcon sx={{ fontSize: 28, color: 'white', mb: 0.5 }} />
                 )}
                 <Typography
-                  variant="h4"
+                  variant="h5"
                   sx={{
                     fontWeight: 'bold',
                     color: 'white',
-                    mb: 1
+                    mb: 0.5,
+                    fontSize: '1.5rem',
                   }}
                 >
                   {user?.role === 'staff' && aiMode === 'chat' ? 'Horizon AI Assistant' : 'Horizon AI Search'}
                 </Typography>
-                
+
                 {user?.role === 'staff' && (
                   <Chip
                     label={aiMode === 'chat' ? 'Chat Mode - Press Enter to Send' : 'Search Mode - Real-time Results'}
@@ -364,21 +383,24 @@ const SearchSection: React.FC = () => {
                     sx={{
                       backgroundColor: 'rgba(255, 255, 255, 0.2)',
                       color: 'white',
-                      mb: 1.5,
-                      fontSize: '0.75rem',
+                      mb: 0.5,
+                      fontSize: '0.7rem',
+                      height: '20px',
                       '& .MuiChip-label': {
-                        fontWeight: 500
+                        fontWeight: 500,
+                        padding: '0 8px',
                       }
                     }}
                   />
                 )}
                 <Typography
-                  variant="body1"
+                  variant="body2"
                   sx={{
                     color: 'white',
                     opacity: 0.9,
                     maxWidth: '500px',
-                    mx: 'auto'
+                    mx: 'auto',
+                    fontSize: '0.85rem',
                   }}
                 >
                   {isAuthenticated
@@ -402,13 +424,14 @@ const SearchSection: React.FC = () => {
                     value={query}
                     onChange={handleSearchChange}
                     onKeyPress={handleKeyPress}
+                    size="small"
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         background: 'rgba(255,255,255,0.95)',
                         backdropFilter: 'blur(10px)',
-                        borderRadius: '12px',
-                        fontSize: '1rem',
-                        padding: '4px 8px',
+                        borderRadius: '10px',
+                        fontSize: '0.95rem',
+                        padding: '2px 8px',
                         '&:hover': {
                           background: 'rgba(255,255,255,1)',
                         },
@@ -425,15 +448,15 @@ const SearchSection: React.FC = () => {
                       startAdornment: (
                         <InputAdornment position="start">
                           {user?.role === 'staff' && aiMode === 'chat' ? (
-                            <ChatIcon sx={{ color: '#115740', fontSize: 24 }} />
+                            <ChatIcon sx={{ color: '#115740', fontSize: 20 }} />
                           ) : (
-                            <SearchIcon sx={{ color: '#115740', fontSize: 24 }} />
+                            <SearchIcon sx={{ color: '#115740', fontSize: 20 }} />
                           )}
                         </InputAdornment>
                       ),
                       endAdornment: (isLoading || isChatLoading) && (
                         <InputAdornment position="end">
-                          <CircularProgress size={24} sx={{ color: '#115740' }} />
+                          <CircularProgress size={20} sx={{ color: '#115740' }} />
                         </InputAdornment>
                       ),
                     }}
@@ -515,17 +538,6 @@ const SearchSection: React.FC = () => {
         </Card>
       </Fade>
 
-      {/* Breadcrumbs Section */}
-      {isAuthenticated && (
-        <BreadcrumbErrorBoundary fallbackMessage="Recent activity temporarily unavailable">
-          <Breadcrumbs 
-            showSearches={true}
-            showChats={user?.settings?.chatEnabled}
-            maxItems={6}
-            compact={false}
-          />
-        </BreadcrumbErrorBoundary>
-      )}
 
       {/* Results Section */}
       <Card

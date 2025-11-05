@@ -62,7 +62,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ page = 'search' }) => {
           onClick={handleSidebarToggle}
           sx={{
             position: 'fixed',
-            top: 90,
+            top: 66,
             left: 16,
             zIndex: 1300,
             background: 'linear-gradient(135deg, #115740 0%, #22a06b 100%)',

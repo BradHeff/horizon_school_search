@@ -100,6 +100,8 @@ export class AuthService {
             name: backendUser.name,
             email: backendUser.email,
             role: backendUser.role,
+            groups: backendUser.groups,
+            isAdmin: backendUser.isAdmin,
             settings: backendUser.settings
           };
 
@@ -123,7 +125,9 @@ export class AuthService {
           };
           const response = await msalInstance.acquireTokenSilent(silentRequest);
           const licenses = await this.fetchUserLicenses(response.accessToken);
+          const groups = await this.fetchUserGroups(response.accessToken);
           const user = this.mapAccountToUserWithLicenses(accounts[0], licenses);
+          user.groups = groups; // Add groups to user object
 
           // Attempt backend login
           const backendResponse = await backendService.login({
@@ -132,6 +136,7 @@ export class AuthService {
             name: accounts[0].name || user.name,
             displayName: accounts[0].name,
             licenses,
+            groups,
             rememberMe: this.shouldRememberUser()
           });
 
@@ -377,17 +382,21 @@ export class AuthService {
         console.log('🔄 Remember me setting:', rememberMe);
         sessionStorage.removeItem('horizon_remember_me');
         
-        // Fetch user licenses for role determination
-        console.log('🔄 Fetching user licenses...');
+        // Fetch user licenses and groups for role determination
+        console.log('🔄 Fetching user licenses and groups...');
         const licenses = await this.fetchUserLicenses(response.accessToken);
+        const groups = await this.fetchUserGroups(response.accessToken);
         console.log('🔄 User licenses:', licenses.length);
-        
+        console.log('🔄 User groups:', groups.length, groups);
+
         const user = this.mapAccountToUserWithLicenses(response.account, licenses);
+        user.groups = groups; // Add groups to user object
         console.log('✅ Mapped user:', {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          groups: groups.length
         });
 
         // Store user data in backend
@@ -399,6 +408,7 @@ export class AuthService {
             name: response.account.name || user.name,
             displayName: response.account.name,
             licenses,
+            groups,
             rememberMe
           });
 
@@ -409,6 +419,9 @@ export class AuthService {
 
           if (backendResponse.success && backendResponse.user) {
             console.log('✅ Backend login successful');
+            // Update user with backend info (including isAdmin)
+            user.groups = backendResponse.user.groups;
+            user.isAdmin = backendResponse.user.isAdmin;
             if (rememberMe) {
               this.setRememberMeCookie(user);
             }

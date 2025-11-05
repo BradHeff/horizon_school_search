@@ -60,10 +60,20 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
     }
   }, [user]);
 
-  const handleAIModeToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAIModeToggle = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const newMode: 'search' | 'chat' = event.target.checked ? 'chat' : 'search';
     setAiMode(newMode);
     AISearchService.setAIMode(newMode);
+
+    // Sync AI mode preference to backend
+    try {
+      const backendService = (await import('../../services/backendService')).default;
+      await backendService.updateUserSettings({ aiMode: newMode });
+      console.log('✅ AI mode synced to backend:', newMode);
+    } catch (error) {
+      console.error('❌ Failed to sync AI mode to backend:', error);
+      // Don't show error to user - local setting still works
+    }
   };
 
   const getIcon = (iconName: string) => {
@@ -128,23 +138,23 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
         color: 'white'
       }}
     >
-      {/* User Profile Section */}
+      {/* User Profile Section - Compact */}
       <Fade in timeout={800}>
-        <Box sx={{ p: 3 }}>
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
             <Grow in timeout={1000}>
               <Avatar
                 alt={user?.name || 'Guest'}
                 src={user?.profileImage}
                 sx={{
-                  width: 80,
-                  height: 80,
-                  margin: '0 auto 16px',
-                  border: '3px solid rgba(255,255,255,0.3)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  width: 48,
+                  height: 48,
+                  mr: 1.5,
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
                   background: user ? getRoleGradient(user.role) : 'linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)',
                   color: user ? getRoleColor(user.role) : '#4b5563',
-                  fontSize: '2rem',
+                  fontSize: '1.25rem',
                   fontWeight: 'bold',
                 }}
               >
@@ -152,272 +162,196 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
               </Avatar>
             </Grow>
 
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 'bold',
-                mb: 2,
-                color: 'white'
-              }}
-            >
-              {user?.name || 'Guest User'}
-            </Typography>
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontWeight: 'bold',
+                    color: 'white',
+                    fontSize: '0.95rem',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user?.name || 'Guest'}
+                </Typography>
+                <Chip
+                  label={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Guest'}
+                  size="small"
+                  sx={{
+                    height: '20px',
+                    fontSize: '0.7rem',
+                    background: user ? getRoleGradient(user.role) : 'rgba(255,255,255,0.2)',
+                    color: user ? getRoleColor(user.role) : 'white',
+                    fontWeight: 'bold',
+                    border: `1px solid ${user ? getRoleColor(user.role) : 'rgba(255,255,255,0.3)'}`,
+                  }}
+                />
+              </Box>
 
-            {user && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mb: 2,
-                  opacity: 0.8
-                }}
-              >
-                <EmailIcon fontSize="small" sx={{ mr: 1 }} />
-                <Typography variant="body2">
+              {user && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'rgba(255,255,255,0.8)',
+                    display: 'block',
+                    fontSize: '0.75rem',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
                   {user.email}
                 </Typography>
+              )}
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'rgba(255,255,255,0.7)',
+                    fontSize: '0.7rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                  }}
+                >
+                  <StarIcon sx={{ fontSize: '0.85rem', color: '#fde047' }} />
+                  {user?.role === 'staff' ? 'Enhanced' : 'Standard'}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'rgba(255,255,255,0.7)',
+                    fontSize: '0.7rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                  }}
+                >
+                  <TrendingUpIcon sx={{ fontSize: '0.85rem', color: '#86efac' }} />
+                  Active
+                </Typography>
               </Box>
-            )}
-
-            <Chip
-              icon={<BadgeIcon />}
-              label={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Guest'}
-              sx={{
-                background: user ? getRoleGradient(user.role) : 'rgba(255,255,255,0.2)',
-                color: user ? getRoleColor(user.role) : 'white',
-                fontWeight: 'bold',
-                border: `2px solid ${user ? getRoleColor(user.role) : 'rgba(255,255,255,0.3)'}`,
-              }}
-            />
+            </Box>
           </Box>
 
-          {/* Stats Section */}
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 2,
-              mt: 3
-            }}
-          >
-            <Paper
-              elevation={0}
-              sx={{
-                background: 'rgba(255,255,255,0.1)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '12px',
-                padding: '12px',
-                textAlign: 'center',
-              }}
-            >
-              <StarIcon sx={{ color: '#fde047', mb: 1 }} />
-              <Typography
-                variant="caption"
-                sx={{
-                  display: 'block',
-                  color: 'white',
-                  opacity: 0.8
-                }}
-              >
-                Access Level
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'white',
-                  fontWeight: 'bold'
-                }}
-              >
-                {user?.role === 'staff' ? 'Enhanced' : 'Standard'}
-              </Typography>
-            </Paper>
-
-            <Paper
-              elevation={0}
-              sx={{
-                background: 'rgba(255,255,255,0.1)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '12px',
-                padding: '12px',
-                textAlign: 'center',
-              }}
-            >
-              <TrendingUpIcon sx={{ color: '#86efac', mb: 1 }} />
-              <Typography
-                variant="caption"
-                sx={{
-                  display: 'block',
-                  color: 'white',
-                  opacity: 0.8
-                }}
-              >
-                Status
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'white',
-                  fontWeight: 'bold'
-                }}
-              >
-                Active
-              </Typography>
-            </Paper>
-          </Box>
-
-          {/* AI Settings Section for Staff */}
+          {/* AI Settings Section for Staff - Compact */}
           {user?.role === 'staff' && (
             <Fade in timeout={1200}>
-              <Box sx={{ mt: 3 }}>
+              <Paper
+                elevation={0}
+                sx={{
+                  background: 'rgba(255,255,255,0.1)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  mt: 1.5,
+                }}
+              >
                 <Box
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    mb: 2,
-                    color: 'white',
-                    opacity: 0.9
+                    justifyContent: 'space-between',
                   }}
                 >
-                  <SettingsIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
-                  <Typography
-                    variant="subtitle2"
-                    sx={{
-                      fontWeight: 'bold',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    AI Assistant Settings
-                  </Typography>
-                </Box>
-
-                <Paper
-                  elevation={0}
-                  sx={{
-                    background: 'rgba(255,255,255,0.1)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '12px',
-                    padding: '16px',
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      mb: 1
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      {aiMode === 'search' ? (
-                        <SearchIcon sx={{ color: '#115740', mr: 1, fontSize: '1.1rem' }} />
-                      ) : (
-                        <ChatIcon sx={{ color: '#10b981', mr: 1, fontSize: '1.1rem' }} />
-                      )}
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: 'white',
-                          fontWeight: 500
-                        }}
-                      >
-                        {aiMode === 'search' ? 'Search Mode' : 'Chat Mode'}
-                      </Typography>
-                    </Box>
-
-                    <Switch
-                      checked={aiMode === 'chat'}
-                      onChange={handleAIModeToggle}
-                      size="small"
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {aiMode === 'search' ? (
+                      <SearchIcon sx={{ color: '#115740', fontSize: '1rem' }} />
+                    ) : (
+                      <ChatIcon sx={{ color: '#10b981', fontSize: '1rem' }} />
+                    )}
+                    <Typography
+                      variant="caption"
                       sx={{
-                        '& .MuiSwitch-switchBase.Mui-checked': {
-                          color: '#10b981',
-                        },
-                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                          backgroundColor: '#10b981',
-                          opacity: 0.7,
-                        },
-                        '& .MuiSwitch-track': {
-                          backgroundColor: '#115740',
-                          opacity: 0.7,
-                        },
+                        color: 'white',
+                        fontWeight: 600,
+                        fontSize: '0.8rem',
                       }}
-                    />
+                    >
+                      {aiMode === 'search' ? 'Search' : 'Chat'}
+                    </Typography>
                   </Box>
 
-                  <Typography
-                    variant="caption"
+                  <Switch
+                    checked={aiMode === 'chat'}
+                    onChange={handleAIModeToggle}
+                    size="small"
                     sx={{
-                      color: 'rgba(255,255,255,0.7)',
-                      display: 'block',
-                      lineHeight: 1.3
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: '#10b981',
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        backgroundColor: '#10b981',
+                        opacity: 0.7,
+                      },
+                      '& .MuiSwitch-track': {
+                        backgroundColor: '#115740',
+                        opacity: 0.7,
+                      },
                     }}
-                  >
-                    {aiMode === 'search'
-                      ? 'AI analyzes web results for educational content'
-                      : 'Interactive AI assistant for teaching support'
-                    }
-                  </Typography>
-                </Paper>
-              </Box>
+                  />
+                </Box>
+              </Paper>
             </Fade>
           )}
         </Box>
       </Fade>
 
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.2)', mx: 3 }} />
+      <Divider sx={{ borderColor: 'rgba(255,255,255,0.2)', mx: 2, my: 1.5 }} />
 
       {/* Quick Links Section */}
       <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
         <Typography
-          variant="h6"
+          variant="subtitle1"
           sx={{
-            px: 3,
-            py: 2,
+            px: 2,
+            py: 1,
             fontWeight: 'bold',
             color: 'white',
             opacity: 0.9,
-            fontSize: '1.1rem'
+            fontSize: '0.9rem'
           }}
         >
           Quick Links
         </Typography>
 
-        <Box sx={{ overflowY: 'auto', height: '100%', pb: 3 }}>
+        <Box sx={{ overflowY: 'auto', height: '100%', pb: 2 }}>
           {Object.entries(groupedLinks).map(([category, links], categoryIndex) => (
             <Fade key={category} in timeout={1000 + categoryIndex * 200}>
-              <Box sx={{ mb: 2 }}>
+              <Box sx={{ mb: 1 }}>
                 <Typography
                   variant="subtitle2"
                   sx={{
-                    px: 3,
-                    py: 1,
+                    px: 2,
+                    py: 0.5,
                     color: 'white',
                     opacity: 0.7,
-                    fontSize: '0.75rem',
+                    fontSize: '0.7rem',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
+                    letterSpacing: '0.08em',
                     fontWeight: 600
                   }}
                 >
                   {category}
                 </Typography>
-                <List dense>
+                <List dense sx={{ py: 0 }}>
                   {links.map((link, linkIndex) => (
                     <Grow key={link.id} in timeout={1200 + categoryIndex * 200 + linkIndex * 100}>
-                      <ListItem disablePadding sx={{ px: 2 }}>
+                      <ListItem disablePadding sx={{ px: 1.5 }}>
                         <ListItemButton
                           onClick={() => {
                             window.open(link.url, '_blank');
                             onLinkClick();
                           }}
                           sx={{
-                            borderRadius: '12px',
-                            margin: '2px 0',
-                            padding: '12px 16px',
+                            borderRadius: '8px',
+                            margin: '1px 0',
+                            padding: '8px 12px',
                             transition: 'all 0.3s ease',
                             '&:hover': {
                               background: 'rgba(255,255,255,0.15)',
@@ -429,7 +363,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
                           <ListItemIcon
                             sx={{
                               color: 'white',
-                              minWidth: '40px',
+                              minWidth: '32px',
                               opacity: 0.9,
                             }}
                           >
@@ -441,7 +375,8 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
                                 variant="body2"
                                 sx={{
                                   fontWeight: 500,
-                                  color: 'white'
+                                  color: 'white',
+                                  fontSize: '0.85rem',
                                 }}
                               >
                                 {link.title}
@@ -449,7 +384,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ onLinkClick }) => {
                             }
                             secondary={
                               link.description && (
-                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
                                   {link.description}
                                 </Typography>
                               )

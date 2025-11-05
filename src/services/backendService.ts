@@ -9,6 +9,8 @@ export interface BackendUser {
   displayName?: string;
   role: 'guest' | 'student' | 'staff';
   licenses: string[];
+  groups?: string[];
+  isAdmin?: boolean;
   settings: {
     aiMode: 'search' | 'chat';
     chatEnabled: boolean;
@@ -234,18 +236,33 @@ class BackendService {
   private loadTokensFromStorage(): void {
     this.accessToken = localStorage.getItem('horizon_access_token');
     this.refreshToken = localStorage.getItem('horizon_refresh_token');
+
+    if (this.accessToken || this.refreshToken) {
+      console.log('📂 Loaded tokens from storage', {
+        hasAccessToken: !!this.accessToken,
+        accessTokenPrefix: this.accessToken?.substring(0, 20) + '...',
+        hasRefreshToken: !!this.refreshToken
+      });
+    }
   }
 
   private saveTokensToStorage(accessToken: string, refreshToken: string | null): void {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
-    
+
     localStorage.setItem('horizon_access_token', accessToken);
     if (refreshToken) {
       localStorage.setItem('horizon_refresh_token', refreshToken);
     } else {
       localStorage.removeItem('horizon_refresh_token');
     }
+
+    console.log('💾 Tokens saved to storage', {
+      accessTokenLength: accessToken?.length || 0,
+      accessTokenPrefix: accessToken?.substring(0, 20) + '...',
+      hasRefreshToken: !!refreshToken,
+      isAuthenticatedNow: this.isAuthenticated()
+    });
   }
 
   private clearTokensFromStorage(): void {
@@ -272,12 +289,19 @@ class BackendService {
 
     if (requireAuth && this.accessToken) {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
+      console.log('🔑 Making authenticated request to', endpoint, {
+        hasToken: !!this.accessToken,
+        tokenPrefix: this.accessToken?.substring(0, 20) + '...'
+      });
+    } else if (requireAuth && !this.accessToken) {
+      console.warn('⚠️ Making request to', endpoint, 'but no access token available');
     }
 
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        credentials: 'include', // Important: This sends cookies with the request
       });
 
       // Handle token expiration
@@ -337,6 +361,7 @@ class BackendService {
     name: string;
     displayName?: string;
     licenses: string[];
+    groups?: string[];
     rememberMe: boolean;
   }): Promise<LoginResponse> {
     console.log('🔐 Logging in to backend...', {
@@ -998,6 +1023,30 @@ class BackendService {
     }
   }
 
+  async getModeratedSearches(action: 'flagged' | 'blocked' | 'approved', options?: {
+    limit?: number;
+    skip?: number;
+  }): Promise<{ searches: SearchHistoryItem[]; total: number }> {
+    try {
+      const params = new URLSearchParams();
+      params.append('includeModerated', 'true');
+      if (options?.limit) params.append('limit', String(options.limit));
+      if (options?.skip) params.append('skip', String(options.skip));
+
+      const response = await this.makeRequest<{ success: boolean; searches: SearchHistoryItem[]; total: number }>(
+        `/moderation/searches?${params.toString()}`
+      );
+
+      // Filter by moderation action on the client side
+      const filtered = (response.searches || []).filter(s => s.moderationAction === action);
+
+      return { searches: filtered, total: filtered.length };
+    } catch (error) {
+      console.error('Failed to get moderated searches:', error);
+      return { searches: [], total: 0 };
+    }
+  }
+
   async getModerationStats(): Promise<ModerationStats | null> {
     try {
       const response = await this.makeRequest<{ success: boolean; stats: ModerationStats }>(
@@ -1038,6 +1087,151 @@ class BackendService {
       return response.result;
     } catch (error) {
       console.error('Failed to test content:', error);
+      return null;
+    }
+  }
+
+  async checkContentModeration(content: string, contentType: string = 'query'): Promise<any> {
+    try {
+      const result = await this.testContent(content, contentType);
+      return result;
+    } catch (error) {
+      console.error('Failed to check content moderation:', error);
+      return null;
+    }
+  }
+
+  // QuickLinks Management Methods
+
+  async getQuickLinks(options?: { category?: string; grouped?: boolean; role?: string }): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (options?.category) params.append('category', options.category);
+      if (options?.grouped) params.append('grouped', 'true');
+
+      const response = await this.makeRequest<{ success: boolean; links: any[]; count: number }>(
+        `/quicklinks?${params.toString()}`,
+        {},
+        false // Public endpoint
+      );
+      return response.links;
+    } catch (error) {
+      console.error('Failed to get quick links:', error);
+      return [];
+    }
+  }
+
+  async getQuickLinksForAdmin(filters?: { category?: string; isActive?: boolean; role?: string }): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.category) params.append('category', filters.category);
+      if (filters?.isActive !== undefined) params.append('isActive', String(filters.isActive));
+      if (filters?.role) params.append('role', filters.role);
+
+      const response = await this.makeRequest<{ success: boolean; links: any[] }>(
+        `/quicklinks/admin?${params.toString()}`
+      );
+      return response.links || [];
+    } catch (error) {
+      console.error('Failed to get admin quick links:', error);
+      return [];
+    }
+  }
+
+  async createQuickLink(linkData: {
+    title: string;
+    url: string;
+    description?: string;
+    icon?: string;
+    category: string;
+    roles: string[];
+    order?: number;
+    isActive?: boolean;
+  }): Promise<any> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; link: any }>(
+        '/quicklinks',
+        {
+          method: 'POST',
+          body: JSON.stringify(linkData),
+        }
+      );
+      return response.link;
+    } catch (error) {
+      console.error('Failed to create quick link:', error);
+      throw error;
+    }
+  }
+
+  async updateQuickLink(linkId: string, updateData: any): Promise<any> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; link: any }>(
+        `/quicklinks/${linkId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(updateData),
+        }
+      );
+      return response.link;
+    } catch (error) {
+      console.error('Failed to update quick link:', error);
+      throw error;
+    }
+  }
+
+  async deleteQuickLink(linkId: string): Promise<boolean> {
+    try {
+      await this.makeRequest<{ success: boolean }>(
+        `/quicklinks/${linkId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+      return true;
+    } catch (error) {
+      console.error('Failed to delete quick link:', error);
+      return false;
+    }
+  }
+
+  async toggleQuickLink(linkId: string): Promise<any> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; link: any }>(
+        `/quicklinks/${linkId}/toggle`,
+        {
+          method: 'PATCH',
+        }
+      );
+      return response.link;
+    } catch (error) {
+      console.error('Failed to toggle quick link:', error);
+      throw error;
+    }
+  }
+
+  async trackQuickLinkClick(linkId: string): Promise<void> {
+    try {
+      await this.makeRequest<{ success: boolean }>(
+        `/quicklinks/${linkId}/click`,
+        {
+          method: 'POST',
+        },
+        false // Don't require auth for click tracking
+      );
+    } catch (error) {
+      console.error('Failed to track link click:', error);
+      // Don't throw - tracking failures shouldn't block navigation
+    }
+  }
+
+  async getQuickLinksStats(): Promise<any> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; stats: any }>(
+        '/quicklinks/stats/summary'
+      );
+      return response.stats;
+    } catch (error) {
+      console.error('Failed to get quick links stats:', error);
       return null;
     }
   }
